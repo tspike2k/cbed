@@ -4,6 +4,7 @@ Copyright: Copyright (c) 2024
 License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 */
 
+#include "../src/common.c"
 #include "../src/files.c"
 #include <stdlib.h>
 
@@ -11,8 +12,9 @@ License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 char buffer[Buffer_Size];
 
 int main(int args_count, const char** args){
-    File stdout = file_get_stdout();
+    ceabed_begin();
 
+    File stdout = file_get_stdout();
     if(args_count > 1){
         // Arguments passed to the application are expected to be file names. Therefore we try
         // to open each argument as a file and print its contents to stdout.
@@ -42,5 +44,6 @@ int main(int args_count, const char** args){
         }
     }
 
+    ceabed_end();
     return 0;
 }

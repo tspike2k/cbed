@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 
 #include "files.h"
+#include "common.h"
 #include <assert.h>
 
 //------------------------------------------------------------------------------
@@ -47,9 +48,8 @@ bool file_open(File *file, const char *file_path, uint32_t flags){
         file->flags = flags|File_Flag_Is_Open;
     }
     else if(!(flags & File_Flag_No_Open_Errors)){
-        /*const char *error_msg = strerror(errno);*/
-        assert(0); // TODO: Logging!
-        //log_error("Unable to open {0}: {1}\n", file_name.ptr, error_msg);
+        const char *error_msg = strerror(errno);
+        fmt_msg("Unable to open {0}: {1}\n", fmt_cstr(file_path), fmt_cstr(error_msg));
     }
     return result;
 }
@@ -65,11 +65,11 @@ size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size){
         if(r == -1){
             if(errno == -EINTR){
                 // Reading was interupted by a signal. Do nothing to try again.
-                // TODO: Log the error.
-                // log_error("Failed to read from file: {0}\n", strerror(errno));
                 continue;
             }
             else{
+                const char *error_msg = strerror(errno);
+                fmt_msg("Failed to read from file: {0}\n", fmt_cstr(error_msg));
                 file->flags |= File_Flag_Error;
             }
         }
@@ -94,11 +94,11 @@ void file_write(File *file, size_t offset, void *buffer, size_t buffer_size){
         if(r == -1){
             if(errno == -EINTR){
                 // Writing was interupted by a signal. Do nothing to try again.
-                // TODO: Log the error.
-                // log_error("Failed to read from file: {0}\n", strerror(errno));
                 continue;
             }
             else{
+                const char *error_msg = strerror(errno);
+                fmt_msg("Failed to write to file: {0}\n", fmt_cstr(error_msg));
                 file->flags |= File_Flag_Error;
             }
         }
