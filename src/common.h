@@ -61,6 +61,7 @@ void ceabed_begin();
 void ceabed_end();
 void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data);
 void fmt_msg_put(const char* msg, size_t msg_length);
+void fmt_msg_puts(const char* msg);
 void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count);
 
 Fmt_Buffer fmt_make_buffer(char *buffer, size_t length);

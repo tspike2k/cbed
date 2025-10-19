@@ -128,6 +128,10 @@ void fmt_msg_put(const char* msg, size_t msg_length){
     fmt__msg_put(msg, msg_length, fmt__msg_dest);
 }
 
+void fmt_msg_puts(const char* msg){
+    fmt__msg_put(msg, strlen(msg), fmt__msg_dest);
+}
+
 Fmt_Buffer fmt_make_buffer(char *buffer, size_t length){
     Fmt_Buffer result = {buffer, length};
     return result;
