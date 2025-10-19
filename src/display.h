@@ -150,7 +150,15 @@ typedef struct {
     };
 } Event;
 
+typedef struct{
+    uint32_t  width;
+    uint32_t  height;
+    uint32_t *pixels;
+} Display_Backbuffer;
+
 bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags);
 void display_end();
+Display_Backbuffer display_get_sw_backbuffer();
+void display_flip_backbuffer();
 
 #endif // CEABED_DISPLAY_H

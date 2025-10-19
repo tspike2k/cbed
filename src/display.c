@@ -75,6 +75,19 @@ typedef struct{
 
 static Xlib g__display;
 
+static void display__create_backbuffer(Xlib_Window *window){
+    if(window->backbuffer)
+        XDestroyImage(window->backbuffer);
+
+    window->backbuffer_pixels = (uint32_t*)calloc(1, window->width*window->height*sizeof(uint32_t));
+
+    // TODO: Error handling
+    window->backbuffer = XCreateImage(g__display.display, g__display.visual,
+        g__display.color_depth, ZPixmap, 0, (char*)window->backbuffer_pixels,
+        window->width, window->height, 32, 0);
+    assert(window->backbuffer);
+}
+
 static Xlib_Window display__open_window(const char *window_title, uint32_t width, uint32_t height, uint32_t flags){
     Xlib *s = &g__display;
 
@@ -102,7 +115,11 @@ static Xlib_Window display__open_window(const char *window_title, uint32_t width
     if(xwindow){
         result.handle  = xwindow;
         result.width   = width;
-        result.width   = height;
+        result.height  = height;
+
+        if(!(flags & Display_Flag_HW_Rendering)){
+            display__create_backbuffer(&result);
+        }
 
         XSetWMProtocols(s->display, xwindow, &s->atom_WMDeleteWindow, 1);
         XStoreName(s->display, xwindow, window_title);
@@ -114,77 +131,6 @@ static Xlib_Window display__open_window(const char *window_title, uint32_t width
     }
 
     return result;
-
-
-#if 0
-    XVisualInfo* visual_info = null;
-    bool got_hw_rendering = false;
-
-    // NOTE(tspike): This is based on the code found at the openGL tutorial found here:
-    // https://www.khronos.org/opengl/wiki/Tutorial:_OpenGL_3.0_Context_Creation_(GLX)
-    {
-        int[23] targetFramebufferAttribs =
-        [
-            GLX_X_RENDERABLE    , True,
-            GLX_DRAWABLE_TYPE   , GLX_WINDOW_BIT,
-            GLX_RENDER_TYPE     , GLX_RGBA_BIT,
-            GLX_X_VISUAL_TYPE   , GLX_TRUE_COLOR,
-            GLX_RED_SIZE        , 8,
-            GLX_GREEN_SIZE      , 8,
-            GLX_BLUE_SIZE       , 8,
-            GLX_ALPHA_SIZE      , 8,
-            GLX_DEPTH_SIZE      , 24,
-            GLX_STENCIL_SIZE    , 8,
-            GLX_DOUBLEBUFFER    , True,
-            //GLX_SAMPLE_BUFFERS  , 1,
-            //GLX_SAMPLES         , 4,
-            None
-        ];
-
-        int fbCount;
-        GLXFBConfig* fbList = glXChooseFBConfig(g_x11_display, default_screen, &targetFramebufferAttribs[0], &fbCount);
-        if(fbCount > 0){
-            // TODO(tspike): Choose and store best visual/fbConfig
-            g_fb_config = fbList[0];
-            visual_info = glXGetVisualFromFBConfig(g_x11_display, g_fb_config);
-
-            // It seems we *must* create a colormap when using OpenGL. If we don't, we get a BadMatch error.
-            attributes_mask |= CWColormap;
-            attributes.colormap = XCreateColormap(g_x11_display, RootWindow(g_x11_display, visual_info.screen), visual_info.visual, AllocNone);
-
-            got_hw_rendering = true;
-
-            log("Got framebuffer config for HW rendering.\n");
-        }
-        else{
-            log("Unable to get framebuffer list. Falling back to software rendering.\n");
-        }
-        XFree(fbList);
-    }
-
-    XVisualInfo sw_visual_info; // This gives us storage for the visual info when using software rendering
-    if(!got_hw_rendering){
-        if(XMatchVisualInfo(g_x11_display, default_screen, 24, TrueColor, &sw_visual_info)){
-            visual_info = &sw_visual_info;
-        }
-        else{
-            log("Unable to match visual for window.\n");
-        }
-    }
-
-    //attributes.background_pixel = WhitePixel(g_x11_display, visual_info.screen);
-    attributes.background_pixel = BlackPixel(g_x11_display, visual_info.screen);
-
-    if(visual_info){
-
-    }
-
-    if(got_hw_rendering){
-        XFree(visual_info);
-    }
-
-    return result;
-#endif
 }
 
 static bool display__process_event(XEvent *xevt, Event *evt){
@@ -247,7 +193,7 @@ static bool display__process_event(XEvent *xevt, Event *evt){
         case ConfigureNotify:{
             s->window.width  = xevt->xconfigure.width;
             s->window.height = xevt->xconfigure.height;
-            /*generate_xlib_backbuffer();*/
+            display__create_backbuffer(&s->window);
         } break;
 
         case KeyPress:
@@ -490,6 +436,23 @@ static bool display__process_event(XEvent *xevt, Event *evt){
 
     }
     return event_translated;
+}
+
+Display_Backbuffer display_get_sw_backbuffer(){
+    Display_Backbuffer result = {};
+    result.width  = g__display.window.width;
+    result.height = g__display.window.height;
+    result.pixels = g__display.window.backbuffer_pixels;
+    return result;
+}
+
+void display_flip_backbuffer(){
+    Xlib *s = &g__display;
+    XPutImage(
+        s->display, s->window.handle, s->graphics_context,
+        s->window.backbuffer,
+        0, 0, 0, 0, s->window.width, s->window.height
+    );
 }
 
 bool display_next_event(Event *event){
