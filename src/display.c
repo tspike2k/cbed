@@ -25,8 +25,108 @@ TODO:
 #include <X11/Xutil.h>
 #include <stdlib.h> // free
 
+enum{
+    GLX_USE_GL           = 1,
+    GLX_BUFFER_SIZE      = 2,
+    GLX_LEVEL            = 3,
+    GLX_RGBA             = 4,
+    GLX_DOUBLEBUFFER     = 5,
+    GLX_STEREO           = 6,
+    GLX_AUX_BUFFERS      = 7,
+    GLX_RED_SIZE         = 8,
+    GLX_GREEN_SIZE       = 9,
+    GLX_BLUE_SIZE        = 10,
+    GLX_ALPHA_SIZE       = 11,
+    GLX_DEPTH_SIZE       = 12,
+    GLX_STENCIL_SIZE     = 13,
+    GLX_ACCUM_RED_SIZE   = 14,
+    GLX_ACCUM_GREEN_SIZE = 15,
+    GLX_ACCUM_BLUE_SIZE	 = 16,
+    GLX_ACCUM_ALPHA_SIZE = 17,
+};
+
+enum{
+    GLX_CONFIG_CAVEAT           = 0x20,
+    GLX_DONT_CARE               = 0xFFFFFFFF,
+    GLX_X_VISUAL_TYPE           = 0x22,
+    GLX_TRANSPARENT_TYPE        = 0x23,
+    GLX_TRANSPARENT_INDEX_VALUE = 0x24,
+    GLX_TRANSPARENT_RED_VALUE   = 0x25,
+    GLX_TRANSPARENT_GREEN_VALUE = 0x26,
+    GLX_TRANSPARENT_BLUE_VALUE  = 0x27,
+    GLX_TRANSPARENT_ALPHA_VALUE = 0x28,
+    GLX_WINDOW_BIT              = 0x00000001,
+    GLX_PIXMAP_BIT              = 0x00000002,
+    GLX_PBUFFER_BIT             = 0x00000004,
+    GLX_AUX_BUFFERS_BIT         = 0x00000010,
+    GLX_FRONT_LEFT_BUFFER_BIT   = 0x00000001,
+    GLX_FRONT_RIGHT_BUFFER_BIT  = 0x00000002,
+    GLX_BACK_LEFT_BUFFER_BIT    = 0x00000004,
+    GLX_BACK_RIGHT_BUFFER_BIT   = 0x00000008,
+    GLX_DEPTH_BUFFER_BIT        = 0x00000020,
+    GLX_STENCIL_BUFFER_BIT      = 0x00000040,
+    GLX_ACCUM_BUFFER_BIT        = 0x00000080,
+    GLX_NONE                    = 0x8000,
+    GLX_SLOW_CONFIG             = 0x8001,
+    GLX_TRUE_COLOR              = 0x8002,
+    GLX_DIRECT_COLOR            = 0x8003,
+    GLX_PSEUDO_COLOR            = 0x8004,
+    GLX_STATIC_COLOR            = 0x8005,
+    GLX_GRAY_SCALE              = 0x8006,
+    GLX_STATIC_GRAY             = 0x8007,
+    GLX_TRANSPARENT_RGB         = 0x8008,
+    GLX_TRANSPARENT_INDEX       = 0x8009,
+    GLX_VISUAL_ID               = 0x800B,
+    GLX_SCREEN                  = 0x800C,
+    GLX_NON_CONFORMANT_CONFIG   = 0x800D,
+    GLX_DRAWABLE_TYPE           = 0x8010,
+    GLX_RENDER_TYPE             = 0x8011,
+    GLX_X_RENDERABLE            = 0x8012,
+    GLX_FBCONFIG_ID	            = 0x8013,
+    GLX_RGBA_TYPE               = 0x8014,
+    GLX_COLOR_INDEX_TYPE        = 0x8015,
+    GLX_MAX_PBUFFER_WIDTH       = 0x8016,
+    GLX_MAX_PBUFFER_HEIGHT      = 0x8017,
+    GLX_MAX_PBUFFER_PIXELS      = 0x8018,
+    GLX_PRESERVED_CONTENTS      = 0x801B,
+    GLX_LARGEST_PBUFFER         = 0x801C,
+    GLX_WIDTH                   = 0x801D,
+    GLX_HEIGHT                  = 0x801E,
+    GLX_EVENT_MASK              = 0x801F,
+    GLX_DAMAGED                 = 0x8020,
+    GLX_SAVED                   = 0x8021,
+    GLX_WINDOW                  = 0x8022,
+    GLX_PBUFFER                 = 0x8023,
+    GLX_PBUFFER_HEIGHT          = 0x8040,
+    GLX_PBUFFER_WIDTH           = 0x8041,
+    GLX_RGBA_BIT                = 0x00000001,
+    GLX_COLOR_INDEX_BIT         = 0x00000002,
+    GLX_PBUFFER_CLOBBER_MASK    = 0x08000000,
+};
+
+typedef struct __GLXcontextRec __GLXcontextRec;
+typedef __GLXcontextRec* GLXContext;
+typedef XID GLXPixmap;
+typedef XID GLXDrawable;
+typedef struct __GLXFBConfigRec __GLXFBConfigRec;
+typedef __GLXFBConfigRec* GLXFBConfig;
+typedef XID GLXFBConfigID;
+typedef XID GLXContextID;
+typedef XID GLXWindow;
+typedef XID GLXPbuffer;
+typedef void (*GLXextFuncPtr)(void);
+
+GLXFBConfig *glXChooseFBConfig(Display* dpy, int screen, const int *attribList, int *nitems);
+XVisualInfo *glXGetVisualFromFBConfig(Display *dpy, GLXFBConfig config);
+const char *glXQueryExtensionsString(Display *dpy, int screen);
+Bool glXMakeCurrent(Display *dpy, GLXDrawable drawable, GLXContext ctx);
+void glXDestroyContext(Display *dpy, GLXContext ctx);
+void glXSwapBuffers(Display *dpy, GLXDrawable drawable);
+GLXextFuncPtr glXGetProcAddressARB(const uint8_t *);
+
 typedef struct{
     Window handle;
+    uint32_t flags;
     uint32_t width;
     uint32_t height;
 
@@ -34,6 +134,10 @@ typedef struct{
     // TODO: The buffer and the width/height can be accessed directly from the XImage. Use those instead!
     uint32_t *backbuffer_pixels;
     XImage   *backbuffer;
+    Visual   *visual;
+    int       screen;
+    int       bit_depth;
+    GC        graphics_context;
 } Xlib_Window;
 
 typedef struct{
@@ -55,8 +159,6 @@ typedef struct{
     Cursor   hidden_cursor;
     Pixmap   hidden_cursor_pixmap;
     Visual  *visual;
-    int      color_depth;
-    GC       graphics_context;
 
     Xlib_Window window;
 
@@ -67,10 +169,11 @@ typedef struct{
     glXSwapIntervalMESAFunc        glxSwapIntervalMESA;
     glXSwapIntervalSGIFunc         glxSwapIntervalSGI;
 
-    // TODO: These are shared between windows, right?
-    GLXContext  g_glx_context;
-    GLXFBConfig g_fb_config;
 #endif
+    // TODO: These are shared between windows, right?
+    GLXContext  glx_context;
+    GLXFBConfig glx_fb_config;
+    Colormap    colormap;
 } Xlib;
 
 static Xlib g__display;
@@ -82,8 +185,8 @@ static void display__create_backbuffer(Xlib_Window *window){
     window->backbuffer_pixels = (uint32_t*)calloc(1, window->width*window->height*sizeof(uint32_t));
 
     // TODO: Error handling
-    window->backbuffer = XCreateImage(g__display.display, g__display.visual,
-        g__display.color_depth, ZPixmap, 0, (char*)window->backbuffer_pixels,
+    window->backbuffer = XCreateImage(g__display.display, window->visual,
+        window->bit_depth, ZPixmap, 0, (char*)window->backbuffer_pixels,
         window->width, window->height, 32, 0);
     assert(window->backbuffer);
 }
@@ -108,26 +211,96 @@ static Xlib_Window display__open_window(const char *window_title, uint32_t width
     // The "screen" is a render target. It seems safe to use the default screen for the given display.
     int default_screen = DefaultScreen(s->display);
 
-    Window xwindow = XCreateWindow(
-        s->display, RootWindow(s->display, default_screen), 0, 0, width, height, 0,
-        s->color_depth, InputOutput, s->visual, attributes_mask, &attributes
-    );
-    if(xwindow){
-        result.handle  = xwindow;
-        result.width   = width;
-        result.height  = height;
+    GLXFBConfig *fb_list = NULL;
+    XVisualInfo *visual_info = NULL;
+    bool got_hw_rendering = false;
 
-        if(!(flags & Display_Flag_HW_Rendering)){
-            display__create_backbuffer(&result);
+    if(flags & Display_Flag_HW_Rendering){
+        // NOTE: This is based on the code found at the openGL tutorial found here:
+        // https://www.khronos.org/opengl/wiki/Tutorial:_OpenGL_3.0_Context_Creation_(GLX)
+        int target_framebuffer_attribs[] =
+        {
+            GLX_X_RENDERABLE    , True,
+            GLX_DRAWABLE_TYPE   , GLX_WINDOW_BIT,
+            GLX_RENDER_TYPE     , GLX_RGBA_BIT,
+            GLX_X_VISUAL_TYPE   , GLX_TRUE_COLOR,
+            GLX_RED_SIZE        , 8,
+            GLX_GREEN_SIZE      , 8,
+            GLX_BLUE_SIZE       , 8,
+            GLX_ALPHA_SIZE      , 8,
+            GLX_DEPTH_SIZE      , 24,
+            GLX_STENCIL_SIZE    , 8,
+            GLX_DOUBLEBUFFER    , True,
+            //GLX_SAMPLE_BUFFERS  , 1,
+            //GLX_SAMPLES         , 4,
+            None
+        };
+
+        int fb_count;
+        fb_list = glXChooseFBConfig(s->display, default_screen, &target_framebuffer_attribs[0], &fb_count);
+        if(fb_count > 0){
+            // TODO: Choose and store best visual/fbConfig
+            s->glx_fb_config = fb_list[0];
+            visual_info = glXGetVisualFromFBConfig(s->display, s->glx_fb_config);
+
+            // It seems we *must* create a colormap when using OpenGL. If we don't, we get a BadMatch error.
+            attributes_mask |= CWColormap;
+            s->colormap = XCreateColormap(s->display, RootWindow(s->display, visual_info->screen), visual_info->visual, AllocNone);
+            attributes.colormap = s->colormap;
+
+            got_hw_rendering = true;
+
+            fmt_msg_puts("Got framebuffer config for HW rendering.\n");
         }
-
-        XSetWMProtocols(s->display, xwindow, &s->atom_WMDeleteWindow, 1);
-        XStoreName(s->display, xwindow, window_title);
-        XMapWindow(s->display, xwindow);
-        XSync(s->display, False);
+        else{
+            fmt_msg_puts("Unable to get framebuffer list. Falling back to software rendering.\n");
+        }
     }
-    else{
-        fmt_msg_puts("Unable to create Xlib window.\n");
+
+    XVisualInfo sw_visual_info; // This gives us storage for the visual info when using software rendering
+    if(!got_hw_rendering){
+        if(XMatchVisualInfo(s->display, default_screen, 24, TrueColor, &sw_visual_info)){
+            visual_info = &sw_visual_info;
+        }
+        else{
+            fmt_msg_puts("Unable to match visual for window.\n");
+        }
+    }
+
+    if(visual_info){
+        Window window = XCreateWindow(
+            s->display, RootWindow(s->display, visual_info->screen), 0, 0, width, height, 0,
+            visual_info->depth, InputOutput, visual_info->visual, attributes_mask, &attributes
+        );
+        if(window){
+            result.handle           = window;
+            result.screen           = visual_info->screen;
+            result.bit_depth        = visual_info->depth;
+            result.visual           = visual_info->visual;
+            result.graphics_context = DefaultGC(s->display, visual_info->screen);
+
+            if(got_hw_rendering){
+                result.flags |= Display_Flag_HW_Rendering;
+            }
+            else{
+                display__create_backbuffer(&result);
+            }
+
+            XSetWMProtocols(s->display, window, &s->atom_WMDeleteWindow, 1);
+            XStoreName(s->display, window, window_title);
+            XMapWindow(s->display, window);
+            XSync(s->display, False);
+        }
+        else{
+            fmt_msg_puts("Unable to create Xlib window.\n");
+        }
+    }
+
+    if(fb_list)
+        XFree(fb_list);
+
+    if(got_hw_rendering){
+        XFree(visual_info);
     }
 
     return result;
@@ -448,11 +621,19 @@ Display_Backbuffer display_get_sw_backbuffer(){
 
 void display_flip_backbuffer(){
     Xlib *s = &g__display;
-    XPutImage(
-        s->display, s->window.handle, s->graphics_context,
-        s->window.backbuffer,
-        0, 0, 0, 0, s->window.width, s->window.height
-    );
+    auto window = &s->window;
+    if(window->flags & Display_Flag_HW_Rendering){
+        // TODO: use glXSwapBuffer or whatever it's called.
+        glXSwapBuffers(s->display, window->handle);
+        XFlush(s->display);
+    }
+    else{
+        XPutImage(
+            s->display, s->window.handle, s->window.graphics_context,
+            s->window.backbuffer,
+            0, 0, 0, 0, s->window.width, s->window.height
+        );
+    }
 }
 
 bool display_next_event(Event *event){
@@ -503,32 +684,6 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
     s->atom_WMDeleteWindow    = XInternAtom(s->display, "WM_DELETE_WINDOW", False);
     s->atom_WMIcon            = XInternAtom(s->display, "_NET_WM_ICON", False);
     s->atom_clipboard         = XInternAtom(s->display, "CLIPBOARD", False);
-
-    int x11_screen = XDefaultScreen(s->display);
-    if(window_flags & Display_Flag_HW_Rendering){
-        assert(0);
-    }
-    else{
-        XVisualInfo visual_info = {};
-        if(!XMatchVisualInfo(s->display, x11_screen, 24, TrueColor, &visual_info)){
-            fmt_msg_puts("Unable to get VisualInfo from Xlib. Aborting.\n");
-            return false;
-        }
-
-        if(visual_info.class != TrueColor){
-            fmt_msg_puts("Unable to get TrueColor Visual from Xlib. Aborting.\n");
-            return false;
-        }
-
-        if(visual_info.red_mask != 0xFF0000 || visual_info.green_mask != 0x00FF00 || visual_info.blue_mask != 0x0000FF){
-            fmt_msg_puts("Unable to get color channels with the required mask. Aborting.\n");
-            return false;
-        }
-
-        s->graphics_context = XDefaultGC(s->display, x11_screen);
-        s->visual           = visual_info.visual;
-        s->color_depth      = visual_info.depth;
-    }
 
     s->window = display__open_window(window_title, width, height, window_flags);
 
@@ -625,7 +780,12 @@ void display_end(){
     if(s->hidden_cursor_pixmap){
         XFreePixmap(s->display, s->hidden_cursor_pixmap);
     }
+    if(s->window.flags & Display_Flag_HW_Rendering){
+        XFreeColormap(s->display, s->colormap);
+    }
+
     display__close_window(&s->window);
+
     //if(g_glx_context) glXDestroyContext(g_x11_display, g_glx_context);
     if(s->display){
         XCloseDisplay(s->display);

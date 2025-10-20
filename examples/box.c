@@ -5,7 +5,9 @@
 //------------------------------------------------------------------------------
 
 #include "common.c"
+#include "os.c"
 #include "display.c"
+#include "opengl.c"
 #include <stdbool.h>
 
 #define MIN(a, b) (a) < (b) ? (a) : (b);
@@ -27,8 +29,16 @@ static void draw_rect(Display_Backbuffer *buffer, int x, int y, int w, int h, ui
     }
 }
 
+#define HW_Rendering 0
+
 int main(){
-    bool running = display_begin("Box", 1024, 768, 0);
+#if HW_Rendering
+    uint32_t flags = Display_Flag_HW_Rendering;
+#else
+    uint32_t flags = false;
+#endif
+
+    bool running = display_begin("Box", 1024, 768, flags);
     while(running){
         Event event;
         while(display_next_event(&event)){
@@ -46,8 +56,10 @@ int main(){
             }
         }
 
+#if !HW_Rendering
         Display_Backbuffer buffer = display_get_sw_backbuffer();
         draw_rect(&buffer, 20, 20, 200, 120, 0xff00ffff);
+#endif
 
         display_flip_backbuffer();
         display_end_frame();
