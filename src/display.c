@@ -6,6 +6,7 @@
 
 #include "common.h"
 #include "display.h"
+#include "opengl.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -104,6 +105,17 @@ enum{
     GLX_PBUFFER_CLOBBER_MASK    = 0x08000000,
 };
 
+enum{
+    GLX_CONTEXT_DEBUG_BIT_ARB              = 0x00000001,
+    GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB = 0x00000002,
+    GLX_CONTEXT_MAJOR_VERSION_ARB          = 0x2091,
+    GLX_CONTEXT_MINOR_VERSION_ARB          = 0x2092,
+    GLX_CONTEXT_FLAGS_ARB                  = 0x2094,
+    GLX_CONTEXT_CORE_PROFILE_BIT_ARB       = 0x00000001,
+    GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB = 0x00000002,
+    GLX_CONTEXT_PROFILE_MASK_ARB           = 0x9126,
+};
+
 typedef struct __GLXcontextRec __GLXcontextRec;
 typedef __GLXcontextRec* GLXContext;
 typedef XID GLXPixmap;
@@ -123,6 +135,16 @@ Bool glXMakeCurrent(Display *dpy, GLXDrawable drawable, GLXContext ctx);
 void glXDestroyContext(Display *dpy, GLXContext ctx);
 void glXSwapBuffers(Display *dpy, GLXDrawable drawable);
 GLXextFuncPtr glXGetProcAddressARB(const uint8_t *);
+
+typedef GLXContext (*glXCreateContextAttribsARBFunc)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
+typedef void (*glXSwapIntervalEXTFunc)(Display* display, GLXDrawable drawable, int interval);
+typedef int (*glXSwapIntervalMESAFunc)(uint32_t interval) ;
+typedef int (*glXSwapIntervalSGIFunc)(int interval);
+
+static glXCreateContextAttribsARBFunc glxCreateContextAttribsARB;
+static glXSwapIntervalEXTFunc         glxSwapIntervalEXT;
+static glXSwapIntervalMESAFunc        glxSwapIntervalMESA;
+static glXSwapIntervalSGIFunc         glxSwapIntervalSGI;
 
 typedef struct{
     Window handle;
@@ -191,7 +213,160 @@ static void display__create_backbuffer(Xlib_Window *window){
     assert(window->backbuffer);
 }
 
-static Xlib_Window display__open_window(const char *window_title, uint32_t width, uint32_t height, uint32_t flags){
+static bool display__get_sw_visual_info(XVisualInfo *visual_info, int screen){
+    bool result = false;
+    // TODO: Look for a better match on the visual. We want to ensure that we get an RGBA
+    // Visual.
+    if(XMatchVisualInfo(g__display.display, screen, 24, TrueColor, visual_info)){
+        result = true;
+    }
+    else{
+        fmt_msg_puts("Unable to match visual for window.\n");
+    }
+    return result;
+}
+
+static bool display__str_vs_cstr(const char *s0, size_t s0_len, const char *s1){
+    bool result = true;
+    size_t i;
+    for(i = 0; i < s0_len; i++){
+        if(s0[i] != s1[i]){
+            result = false;
+            break;
+        }
+    }
+
+    result = result && s1[i] == '\0';
+    if(result){
+        fmt_msg_puts(s1);
+        fmt_msg_puts("\n");
+    }
+    return result;
+}
+
+static int display__stub_xlib_error_handler(Display* display, XErrorEvent* ev){
+    char buffer[256];
+    XGetErrorText(display, ev->error_code, &buffer[0], 256);
+    fmt_msg_puts(&buffer[0]);
+    fmt_msg_puts("\n");
+    return 0;
+}
+
+static bool display__init_glx(XVisualInfo *visual_info, int screen){
+    Xlib *s = &g__display;
+
+    const char *extension_string = glXQueryExtensionsString(s->display, screen);
+    if(!extension_string) return false;
+
+    //
+    // Load GLX Extensions
+    //
+    const char *reader = extension_string;
+    while(*reader != '\0'){
+        const char *start = reader;
+        size_t len = 0;
+        while(*reader != '\0'){
+            if(reader[0] == ' '){
+                len = reader - start;
+                reader++;
+                break;
+            }
+            reader++;
+        }
+
+        if(display__str_vs_cstr(start, len, "GLX_EXT_swap_control")){
+            glxSwapIntervalEXT = (glXSwapIntervalEXTFunc)glXGetProcAddressARB((uint8_t*)"glXSwapIntervalEXT");
+        }
+        else if(display__str_vs_cstr(start, len, "GLX_MESA_swap_control")){
+            glxSwapIntervalMESA = (glXSwapIntervalMESAFunc)glXGetProcAddressARB((uint8_t*)"glXSwapIntervalMESA");
+        }
+        else if(display__str_vs_cstr(start, len, "GLX_SGI_swap_control")){
+            glxSwapIntervalSGI = (glXSwapIntervalSGIFunc)glXGetProcAddressARB((uint8_t*)"glXSwapIntervalSGI");
+        }
+        else if(display__str_vs_cstr(start, len, "GLX_ARB_create_context")
+        || display__str_vs_cstr(start, len, "GLX_ARB_create_context_profile")){
+            if(!glxCreateContextAttribsARB){
+                glxCreateContextAttribsARB = (glXCreateContextAttribsARBFunc)glXGetProcAddressARB((uint8_t*)"glXCreateContextAttribsARB");
+            }
+        }
+    }
+
+    //
+    // Find OpenGL compatible framebuffer.
+    //
+    // NOTE: This is based on the code found at the openGL tutorial found here:
+    // https://www.khronos.org/opengl/wiki/Tutorial:_OpenGL_3.0_Context_Creation_(GLX)
+    int target_framebuffer_attribs[] =
+    {
+        GLX_X_RENDERABLE    , True,
+        GLX_DRAWABLE_TYPE   , GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE     , GLX_RGBA_BIT,
+        GLX_X_VISUAL_TYPE   , GLX_TRUE_COLOR,
+        GLX_RED_SIZE        , 8,
+        GLX_GREEN_SIZE      , 8,
+        GLX_BLUE_SIZE       , 8,
+        GLX_ALPHA_SIZE      , 8,
+        GLX_DEPTH_SIZE      , 24,
+        GLX_STENCIL_SIZE    , 8,
+        GLX_DOUBLEBUFFER    , True,
+        //GLX_SAMPLE_BUFFERS  , 1,
+        //GLX_SAMPLES         , 4,
+        None
+    };
+
+    if(glxCreateContextAttribsARB){
+        int fb_count;
+        GLXFBConfig *fb_list = glXChooseFBConfig(s->display, screen, &target_framebuffer_attribs[0], &fb_count);
+        if(fb_count > 0){
+            // TODO: Choose and store best visual/fbConfig
+            s->glx_fb_config = fb_list[0];
+            XVisualInfo *target_visual_info = glXGetVisualFromFBConfig(s->display, s->glx_fb_config); // TODO: Can this fail?
+
+            // It seems we *must* create a colormap when using OpenGL. If we don't, we get a BadMatch error.
+            s->colormap = XCreateColormap(s->display, RootWindow(s->display, target_visual_info->screen), target_visual_info->visual, AllocNone);
+
+            *visual_info = *target_visual_info;
+            XFree(target_visual_info);
+            XFree(fb_list);
+
+            fmt_msg_puts("Got framebuffer config for HW rendering.\n");
+
+            // NOTE: Temporarily stub out the X11 error handler with our own in case context creation fails.
+            XErrorHandler old_error_handler = XSetErrorHandler(display__stub_xlib_error_handler);
+
+            // NOTE: Setting GLX_CONTEXT_FLAGS_ARB to GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+            // appears to be bad practice. The official OpenGL wiki states you should NEVER do it:
+            // https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
+            int glxContextAttribs[] = {
+                GLX_CONTEXT_MAJOR_VERSION_ARB, OpenGL_Version_Major,
+                GLX_CONTEXT_MINOR_VERSION_ARB, OpenGL_Version_Minor,
+                GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+#if !NDEBUG
+                GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,
+#endif
+                None
+            };
+
+            // TODO: Error checking
+            s->glx_context = glxCreateContextAttribsARB(s->display, s->glx_fb_config, NULL, True, &glxContextAttribs[0]);
+            if(!s->glx_context){
+                fmt_msg_puts("Unable to create OpenGL context.\n");
+            }
+
+            // NOTE(tspike): Call XSync to force X11 to process errors and send them to our error handler
+            XSync(s->display, False);
+            XSetErrorHandler(old_error_handler);
+        }
+        else{
+            fmt_msg_puts("Unable to get framebuffer list. Falling back to software rendering.\n");
+        }
+    }
+
+    bool result = s->glx_context;
+    return result;
+}
+
+static Xlib_Window display__open_window(const char *window_title, XVisualInfo * visual_info, uint32_t width, uint32_t height, uint32_t flags){
     Xlib *s = &g__display;
 
     // TODO: Find out once and for all what a "visual" and "gc" are and how they relate to software/hardware rendering.
@@ -200,7 +375,7 @@ static Xlib_Window display__open_window(const char *window_title, uint32_t width
     // NOTE: Setting the window attribute "bit_gravity" to StaticGravity helps prevent flickering
     // when resizing the window. See here for more information:
     // https://handmade.network/forums/articles/t/2834-tutorial_a_tour_through_xlib_and_related_technologies
-    uint32_t attributes_mask = CWEventMask|CWBackPixel|CWBitGravity|CWBackPixmap;
+    uint32_t attributes_mask = CWEventMask|CWBitGravity|CWBackPixmap;
     XSetWindowAttributes attributes = {};
     attributes.event_mask = FocusChangeMask| ExposureMask | StructureNotifyMask
         | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask
@@ -208,99 +383,42 @@ static Xlib_Window display__open_window(const char *window_title, uint32_t width
     attributes.background_pixmap = None; // TODO: Background pixmap? Does this mean we can make a framebuffer here?
     attributes.bit_gravity = StaticGravity;
 
-    // The "screen" is a render target. It seems safe to use the default screen for the given display.
-    int default_screen = DefaultScreen(s->display);
-
-    GLXFBConfig *fb_list = NULL;
-    XVisualInfo *visual_info = NULL;
-    bool got_hw_rendering = false;
-
-    if(flags & Display_Flag_HW_Rendering){
-        // NOTE: This is based on the code found at the openGL tutorial found here:
-        // https://www.khronos.org/opengl/wiki/Tutorial:_OpenGL_3.0_Context_Creation_(GLX)
-        int target_framebuffer_attribs[] =
-        {
-            GLX_X_RENDERABLE    , True,
-            GLX_DRAWABLE_TYPE   , GLX_WINDOW_BIT,
-            GLX_RENDER_TYPE     , GLX_RGBA_BIT,
-            GLX_X_VISUAL_TYPE   , GLX_TRUE_COLOR,
-            GLX_RED_SIZE        , 8,
-            GLX_GREEN_SIZE      , 8,
-            GLX_BLUE_SIZE       , 8,
-            GLX_ALPHA_SIZE      , 8,
-            GLX_DEPTH_SIZE      , 24,
-            GLX_STENCIL_SIZE    , 8,
-            GLX_DOUBLEBUFFER    , True,
-            //GLX_SAMPLE_BUFFERS  , 1,
-            //GLX_SAMPLES         , 4,
-            None
-        };
-
-        int fb_count;
-        fb_list = glXChooseFBConfig(s->display, default_screen, &target_framebuffer_attribs[0], &fb_count);
-        if(fb_count > 0){
-            // TODO: Choose and store best visual/fbConfig
-            s->glx_fb_config = fb_list[0];
-            visual_info = glXGetVisualFromFBConfig(s->display, s->glx_fb_config);
-
-            // It seems we *must* create a colormap when using OpenGL. If we don't, we get a BadMatch error.
-            attributes_mask |= CWColormap;
-            s->colormap = XCreateColormap(s->display, RootWindow(s->display, visual_info->screen), visual_info->visual, AllocNone);
-            attributes.colormap = s->colormap;
-
-            got_hw_rendering = true;
-
-            fmt_msg_puts("Got framebuffer config for HW rendering.\n");
-        }
-        else{
-            fmt_msg_puts("Unable to get framebuffer list. Falling back to software rendering.\n");
-        }
+    bool use_hw_rendering = (flags & Display_Flag_HW_Rendering);
+    if(use_hw_rendering){
+        assert(s->colormap);
+        attributes_mask |= CWColormap;
+        attributes.colormap = s->colormap;
+    }
+    else{
+        attributes_mask |= CWBackPixel;
+        attributes.background_pixel = BlackPixel(s->display, visual_info->screen);
     }
 
-    XVisualInfo sw_visual_info; // This gives us storage for the visual info when using software rendering
-    if(!got_hw_rendering){
-        if(XMatchVisualInfo(s->display, default_screen, 24, TrueColor, &sw_visual_info)){
-            visual_info = &sw_visual_info;
+    Window window = XCreateWindow(
+        s->display, RootWindow(s->display, visual_info->screen), 0, 0, width, height, 0,
+        visual_info->depth, InputOutput, visual_info->visual, attributes_mask, &attributes
+    );
+    if(window){
+        result.handle           = window;
+        result.flags            = flags;
+        result.screen           = visual_info->screen;
+        result.bit_depth        = visual_info->depth;
+        result.visual           = visual_info->visual;
+        result.graphics_context = DefaultGC(s->display, visual_info->screen);
+        result.width            = width;
+        result.height           = height;
+
+        if(!use_hw_rendering){
+            display__create_backbuffer(&result);
         }
-        else{
-            fmt_msg_puts("Unable to match visual for window.\n");
-        }
+
+        XSetWMProtocols(s->display, window, &s->atom_WMDeleteWindow, 1);
+        XStoreName(s->display, window, window_title);
+        XMapWindow(s->display, window);
+        XSync(s->display, False);
     }
-
-    if(visual_info){
-        Window window = XCreateWindow(
-            s->display, RootWindow(s->display, visual_info->screen), 0, 0, width, height, 0,
-            visual_info->depth, InputOutput, visual_info->visual, attributes_mask, &attributes
-        );
-        if(window){
-            result.handle           = window;
-            result.screen           = visual_info->screen;
-            result.bit_depth        = visual_info->depth;
-            result.visual           = visual_info->visual;
-            result.graphics_context = DefaultGC(s->display, visual_info->screen);
-
-            if(got_hw_rendering){
-                result.flags |= Display_Flag_HW_Rendering;
-            }
-            else{
-                display__create_backbuffer(&result);
-            }
-
-            XSetWMProtocols(s->display, window, &s->atom_WMDeleteWindow, 1);
-            XStoreName(s->display, window, window_title);
-            XMapWindow(s->display, window);
-            XSync(s->display, False);
-        }
-        else{
-            fmt_msg_puts("Unable to create Xlib window.\n");
-        }
-    }
-
-    if(fb_list)
-        XFree(fb_list);
-
-    if(got_hw_rendering){
-        XFree(visual_info);
+    else{
+        fmt_msg_puts("Unable to create Xlib window.\n");
     }
 
     return result;
@@ -366,7 +484,10 @@ static bool display__process_event(XEvent *xevt, Event *evt){
         case ConfigureNotify:{
             s->window.width  = xevt->xconfigure.width;
             s->window.height = xevt->xconfigure.height;
-            display__create_backbuffer(&s->window);
+
+            if(s->window.flags & Display_Flag_HW_Rendering){
+                display__create_backbuffer(&s->window);
+            }
         } break;
 
         case KeyPress:
@@ -685,7 +806,31 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
     s->atom_WMIcon            = XInternAtom(s->display, "_NET_WM_ICON", False);
     s->atom_clipboard         = XInternAtom(s->display, "CLIPBOARD", False);
 
-    s->window = display__open_window(window_title, width, height, window_flags);
+    // The "screen" is a render target. It seems safe to use the default screen for the given display.
+    int default_screen = DefaultScreen(s->display);
+
+    XVisualInfo visual_info = {};
+    if(window_flags & Display_Flag_HW_Rendering){
+        if(!display__init_glx(&visual_info, default_screen)){
+            window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually cleae the flag? Get the syntax right!
+            display__get_sw_visual_info(&visual_info, default_screen);
+        }
+    }
+    else{
+        display__get_sw_visual_info(&visual_info, default_screen);
+    }
+
+    if(visual_info.visual){
+        s->window = display__open_window(window_title, &visual_info, width, height, window_flags);
+
+        if(s->window.flags & Display_Flag_HW_Rendering){
+            glXMakeCurrent(s->display, s->window.handle, s->glx_context);
+        }
+    }
+    else{
+        fmt_msg_puts("Unable to create window for display.\n");
+    }
+
 
 #if 0
     int screen = g_xlib_window.screen;

@@ -29,13 +29,13 @@ static void draw_rect(Display_Backbuffer *buffer, int x, int y, int w, int h, ui
     }
 }
 
-#define HW_Rendering 0
+#define HW_Rendering 1
 
 int main(){
 #if HW_Rendering
     uint32_t flags = Display_Flag_HW_Rendering;
 #else
-    uint32_t flags = false;
+    uint32_t flags = 0;
 #endif
 
     bool running = display_begin("Box", 1024, 768, flags);
