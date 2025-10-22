@@ -9,6 +9,7 @@
 #include "opengl.c"
 #include "display.c"
 #include "draw.c"
+#include "math.c"
 #include <stdbool.h>
 
 #define Array_Length(a) (sizeof(a) / sizeof(a[0]))
@@ -58,7 +59,10 @@ int main(){
         }
 
         draw_frame_begin(&memory[0], Array_Length(memory));
-        draw_quad(0, 0, 1, 1, 0xff0000ff);
+        draw_quad(-100, -100, 200, 200, 0x000000ff);
+        draw_quad(0, 0, 200, 200, 0xff0000ff);
+        draw_quad(0, 0, 100, 100, 0xffff00ff);
+
         draw_frame_end();
 
         display_flip_backbuffer();
