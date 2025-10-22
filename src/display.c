@@ -237,10 +237,6 @@ static bool display__str_vs_cstr(const char *s0, size_t s0_len, const char *s1){
     }
 
     result = result && s1[i] == '\0';
-    if(result){
-        fmt_msg_puts(s1);
-        fmt_msg_puts("\n");
-    }
     return result;
 }
 
@@ -744,9 +740,7 @@ void display_flip_backbuffer(){
     Xlib *s = &g__display;
     auto window = &s->window;
     if(window->flags & Display_Flag_HW_Rendering){
-        // TODO: use glXSwapBuffer or whatever it's called.
         glXSwapBuffers(s->display, window->handle);
-        XFlush(s->display);
     }
     else{
         XPutImage(
@@ -812,7 +806,7 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
     XVisualInfo visual_info = {};
     if(window_flags & Display_Flag_HW_Rendering){
         if(!display__init_glx(&visual_info, default_screen)){
-            window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually cleae the flag? Get the syntax right!
+            window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually clear the flag? Get the syntax right!
             display__get_sw_visual_info(&visual_info, default_screen);
         }
     }
@@ -825,6 +819,7 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
 
         if(s->window.flags & Display_Flag_HW_Rendering){
             glXMakeCurrent(s->display, s->window.handle, s->glx_context);
+            load_opengl_functions((OpenGL_Load_Sym_Func)glXGetProcAddressARB);
         }
     }
     else{
@@ -833,10 +828,6 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
 
 
 #if 0
-    int screen = g_xlib_window.screen;
-    const char* glx_extension_string = glXQueryExtensionsString(g_x11_display, screen);
-    load_glx_extensions(glx_extension_string[0 .. strlen(glx_extension_string)]);
-
     XextErrorHandler default_xext_error_handler =
         XSetExtensionErrorHandler(&xext_error_handler);
 
@@ -844,49 +835,6 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
 
     XSync(g_x11_display, False);
     XSetExtensionErrorHandler(default_xext_error_handler);
-
-    if(glxCreateContextAttribsARB){
-        // NOTE(tspike): Temporarily stub out the X11 error handler with our own in case context creation fails.
-        XErrorHandler defaultX11ErrorHandler = XSetErrorHandler(&stub_x11_error_handler);
-
-        // NOTE(tspike): Setting GLX_CONTEXT_FLAGS_ARB to GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
-        // appears to be bad practice. The official OpenGL wiki states you should NEVER do it:
-        // https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
-        debug{
-            int[9] glxContextAttribs = [
-                GLX_CONTEXT_MAJOR_VERSION_ARB, Target_OpenGL_Version_Major,
-                GLX_CONTEXT_MINOR_VERSION_ARB, Target_OpenGL_Version_Minor,
-                GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
-                GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,
-                None
-            ];
-        }
-        else{
-            int[7] glxContextAttribs = [
-                GLX_CONTEXT_MAJOR_VERSION_ARB, Target_OpenGL_Version_Major,
-                GLX_CONTEXT_MINOR_VERSION_ARB, Target_OpenGL_Version_Minor,
-                GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
-                None
-            ];
-        }
-
-        // TODO: Error checking
-        g_glx_context = glxCreateContextAttribsARB(g_x11_display, g_fb_config, null, True, &glxContextAttribs[0]);
-
-        // NOTE(tspike): Call XSync to force X11 to process errors and send them to our error handler
-        XSync(g_x11_display, False);
-        XSetErrorHandler(defaultX11ErrorHandler);
-    }
-
-    // TODO: Fallback to software rendering if we can't get an OpenGL context
-    if (!g_glx_context){
-        log("Unable to create OpenGL context. Exiting.\n"); // TODO: Better logging
-        //log("Unable to create OpenGL {0}.{1} context. Exiting.\n", fmt_u(TARGET_GL_VERSION_MAJOR), fmt_u(TARGET_GL_VERSION_MINOR));
-        return false;
-    }
-    glXMakeCurrent(g_x11_display, g_xlib_window.handle, g_glx_context);
-
-    load_opengl_functions(cast(OpenGL_Load_Sym_Func)&glXGetProcAddressARB);
 
     XColor hidden_cursor_color = void;
     clear_to_zero(hidden_cursor_color);
@@ -941,6 +889,17 @@ void display_end(){
 
 void display_end_frame(){
     XFlush(g__display.display);
+}
+
+Display_Info display_get_info(){
+    Xlib_Window *window = &g__display.window;
+    Display_Info result = {};
+    result.window_flags  = window->flags;
+    result.window_width  = window->width;
+    result.window_height = window->height;
+    /*fmt_msg("Window: {0},{1}\n", fmt_i(window->width), fmt_i(window->height));*/
+
+    return result;
 }
 
 //------------------------------------------------------------------------------

@@ -49,6 +49,7 @@ glGenVertexArraysFunc glGenVertexArrays;
 glEnableVertexAttribArrayFunc glEnableVertexAttribArray;
 glDisableVertexAttribArrayFunc glDisableVertexAttribArray;
 glVertexAttribPointerFunc glVertexAttribPointer;
+glVertexAttribIPointerFunc glVertexAttribIPointer;
 glUniformBlockBindingFunc glUniformBlockBinding;
 glBindBufferRangeFunc glBindBufferRange;
 glGetUniformBlockIndexFunc glGetUniformBlockIndex;
@@ -106,6 +107,7 @@ void load_opengl_functions(OpenGL_Load_Sym_Func load){
     glEnableVertexAttribArray = (glEnableVertexAttribArrayFunc)load("glEnableVertexAttribArray");
     glDisableVertexAttribArray = (glDisableVertexAttribArrayFunc)load("glDisableVertexAttribArray");
     glVertexAttribPointer = (glVertexAttribPointerFunc)load("glVertexAttribPointer");
+    glVertexAttribIPointer = (glVertexAttribIPointerFunc)load("glVertexAttribIPointer");;
     glUniformBlockBinding = (glUniformBlockBindingFunc)load("glUniformBlockBinding");
     glBindBufferRange = (glBindBufferRangeFunc)load("glBindBufferRange");
     glGetUniformBlockIndex = (glGetUniformBlockIndexFunc)load("glGetUniformBlockIndex");

@@ -6,13 +6,17 @@
 
 #include "common.c"
 #include "os.c"
-#include "display.c"
 #include "opengl.c"
+#include "display.c"
+#include "draw.c"
 #include <stdbool.h>
+
+#define Array_Length(a) (sizeof(a) / sizeof(a[0]))
 
 #define MIN(a, b) (a) < (b) ? (a) : (b);
 #define MAX(a, b) (a) > (b) ? (a) : (b);
 
+#if 0
 static void draw_rect(Display_Backbuffer *buffer, int x, int y, int w, int h, uint32_t color){
     uint32_t min_x = MAX(0, x);
     uint32_t min_y = MAX(0, y);
@@ -28,17 +32,14 @@ static void draw_rect(Display_Backbuffer *buffer, int x, int y, int w, int h, ui
         }
     }
 }
-
-#define HW_Rendering 1
-
-int main(){
-#if HW_Rendering
-    uint32_t flags = Display_Flag_HW_Rendering;
-#else
-    uint32_t flags = 0;
 #endif
 
-    bool running = display_begin("Box", 1024, 768, flags);
+uint8_t memory[2*1024*1024];
+
+int main(){
+    uint32_t display_flags = Display_Flag_HW_Rendering;
+    bool running = display_begin("Box", 1024, 768, display_flags)
+        && draw_begin();
     while(running){
         Event event;
         while(display_next_event(&event)){
@@ -56,15 +57,15 @@ int main(){
             }
         }
 
-#if !HW_Rendering
-        Display_Backbuffer buffer = display_get_sw_backbuffer();
-        draw_rect(&buffer, 20, 20, 200, 120, 0xff00ffff);
-#endif
+        draw_frame_begin(&memory[0], Array_Length(memory));
+        draw_quad(0, 0, 1, 1, 0xff0000ff);
+        draw_frame_end();
 
         display_flip_backbuffer();
         display_end_frame();
     }
 
+    draw_end();
     display_end();
     return 0;
 }
