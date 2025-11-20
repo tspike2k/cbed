@@ -40,7 +40,7 @@ uint8_t memory[2*1024*1024];
 int main(){
     uint32_t display_flags = Display_Flag_HW_Rendering;
     bool running = display_begin("Box", 1024, 768, display_flags)
-        && draw_begin();
+        && draw_begin(&memory[0], Array_Length(memory));
     while(running){
         Event event;
         while(display_next_event(&event)){
@@ -58,7 +58,7 @@ int main(){
             }
         }
 
-        draw_frame_begin(&memory[0], Array_Length(memory));
+        draw_frame_begin();
         draw_quad(-100, -100, 200, 200, 0x000000ff);
         draw_quad(0, 0, 200, 200, 0xff0000ff);
         draw_quad(0, 0, 100, 100, 0xffff00ff);
