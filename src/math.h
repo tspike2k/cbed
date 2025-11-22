@@ -19,6 +19,10 @@ typedef struct{
 } Vec3;
 
 typedef struct{
+    float x, y, z, w;
+} Vec4;
+
+typedef struct{
     Vec2 center;
     Vec2 extents;
 } Rect;

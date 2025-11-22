@@ -4,6 +4,7 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
+#include "common.h"
 #include "draw.h"
 
 #define Draw__Offsetof(T, member) ((size_t)&(((T*)0)->member))
@@ -36,21 +37,15 @@ typedef struct {
     uint32_t color;
 } Draw_Vertex;
 
-typedef struct{
-    uint8_t *data;
-    size_t   size;
-    size_t   used;
-} Draw_Buffer;
-
 typedef struct {
-    Draw_Buffer buffer;
+    Buffer           buffer;
     Draw_Cmd_Header *last_cmd;
 } Draw_Layer;
 
 typedef struct{
     bool        hw_rendering;
     Draw_Layer  layers[Draw_Layer_Total];
-    Draw_Buffer memory;
+    Buffer      memory;
     uint32_t    layer_index;
     Vec2        solid_quad_uvs_min;
     Vec2        solid_quad_uvs_max;
@@ -62,7 +57,7 @@ static Draw_Layer *draw__get_active_layer(){
     return result;
 }
 
-static void *draw__push_bytes(Draw_Buffer *buffer, size_t bytes){
+static void *draw__push_bytes(Buffer *buffer, size_t bytes){
     assert(bytes <= buffer->size - buffer->used);
     void *result = &buffer->data[buffer->used];
     buffer->used += bytes;
@@ -109,9 +104,9 @@ void draw_init_layer(uint32_t layer_id, size_t buffer_size){
 
     assert(layer_id < Draw_Layer_Total);
     Draw_Layer *layer = &s->layers[layer_id];
-    Draw_Buffer *memory = &s->memory;
+    Buffer *memory = &s->memory;
     assert(buffer_size <= memory->size - memory->used);
-    layer->buffer = (Draw_Buffer){&memory->data[memory->used], buffer_size};
+    layer->buffer = (Buffer){&memory->data[memory->used], buffer_size};
     memory->used += buffer_size;
 }
 
@@ -151,6 +146,126 @@ void draw_quad(float px, float py, float w, float h, uint32_t color){
     v[4].color = color;
     v[5].pos = p3;
     v[5].color = color;
+}
+
+//
+// Font
+//
+
+Font_Glyph* get_glyph(Font* font, uint32_t codepoint){
+    Font_Glyph* result = &font->null_glyph;
+    for(uint32_t i = 0; i < font->glyphs_count; i++){
+        if(font->glyph_codepoints[i] == codepoint){
+            result = &font->glyphs[i];
+            break;
+        }
+    }
+    return result;
+}
+
+float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint){
+    float result = 0;
+    for(uint32_t i = 0; i < font->kerning_pairs_count; i++){
+        Font_Kerning_Pair *entry = &font->kerning_pairs[i];
+        if(entry->a == prev_codepoint && entry->b == codepoint){
+            result = font->kerning_advance[i];
+            break;
+        }
+    }
+    return result;
+}
+
+static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
+    void *result = NULL;
+    if(buffer->used + bytes <= buffer->size){
+        result = &buffer->data[buffer->used];
+        buffer->used += bytes;
+    }
+    else{
+        *error = true;
+    }
+
+    return result;
+}
+
+static void *draw__read_bytes_expect_end(Buffer *buffer, size_t bytes, bool *error){
+    void *result = draw__read_bytes(buffer, bytes, error);
+    if(buffer->used != buffer->size){
+        *error = true;
+    }
+    return result;
+}
+
+bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size){
+    Buffer buffer = {memory, memory_size};
+    bool error = false;
+
+    Font_Header *header = (Font_Header*)draw__read_bytes(&buffer, sizeof(Font_Header), &error);
+    if(!header){
+        fmt_msg("Memory for font {0} is too short.\n", fmt_cstr(font_name));
+        return false;
+    }
+
+    if(header->magic != Font_File_Magic){
+        fmt_msg("Unexpected magic in file header for font {0}\n", fmt_cstr(font_name));
+        return false;
+    }
+
+    if(header->version != Font_File_Version){
+        fmt_msg(
+            "Unsupported file version for font {0}. Expected {1} but got {2} instead.\n",
+            fmt_cstr(font_name), fmt_i(Font_File_Version), fmt_i(header->version)
+        );
+        return false;
+    }
+
+    while(buffer.used < buffer.size && !error){
+        Font_Section *section = (Font_Section*)draw__read_bytes(&buffer, sizeof(Font_Section), &error);
+        if(!section){
+            fmt_msg("Error! Unable to read next section for font {0}.\n", fmt_cstr(font_name));
+            break;
+        }
+
+        size_t payload_size = section->size - sizeof(Font_Section);
+        Buffer payload = {
+            draw__read_bytes(&buffer, payload_size, &error),
+            payload_size
+        };
+        if(!payload.data){
+            fmt_msg("Error! Payload of section type {1} is too short for font {0}.\n", fmt_cstr(font_name), fmt_i(section->type));
+            break;
+        }
+
+        switch(section->type){
+            case Font_Section_Metrics:{
+                font->metrics = (Font_Metrics*)draw__read_bytes_expect_end(&payload, sizeof(Font_Metrics), &error);
+            } break;
+
+            case Font_Section_Glyphs:{
+                uint32_t *count = (uint32_t*)draw__read_bytes(&payload, sizeof(uint32_t), &error);
+                if(count){
+                    font->glyphs_count = *count;
+                    font->glyph_codepoints = (uint32_t*)draw__read_bytes(
+                        &payload, sizeof(uint32_t) * font->glyphs_count, &error
+                    );
+                    font->glyphs = (Font_Glyph*)draw__read_bytes_expect_end(
+                        &payload, sizeof(Font_Glyph) * font->glyphs_count, &error
+                    );
+                }
+            } break;
+
+            case Font_Section_Kerning:
+            case Font_Section_Pixels:
+            case Font_Section_Blank_UVs:
+                assert(0);
+        }
+
+        if(error){
+            fmt_msg("Error! Section type {1} for font {0} is malformd.\n", fmt_cstr(font_name), fmt_i(section->type));
+        }
+    }
+
+    return !error;
 }
 
 #ifdef __gnu_linux__
@@ -323,7 +438,7 @@ bool draw_begin(void *memory, size_t memory_size){
 
     Display_Info info = display_get_info();
     s->common.hw_rendering = info.window_flags & Display_Flag_HW_Rendering;
-    s->common.memory = (Draw_Buffer){memory, memory_size};
+    s->common.memory = (Buffer){memory, memory_size};
 
     bool success = true;
     if(s->common.hw_rendering){
@@ -415,7 +530,7 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
     if(layer->buffer.used < sizeof(Draw_Cmd_Header)) return;
     assert(layer->buffer.data);
 
-    Draw_Buffer *cmd_buffer = &layer->buffer;
+    Buffer *cmd_buffer = &layer->buffer;
     size_t cmd_cursor = 0;
     if(s->common.hw_rendering){
         while(cmd_cursor < cmd_buffer->used){

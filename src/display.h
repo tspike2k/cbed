@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 
 enum{
     Display_Flag_HW_Rendering = (1 << 0),
@@ -167,5 +168,7 @@ void display_end();
 Display_Backbuffer display_get_sw_backbuffer();
 void display_flip_backbuffer();
 Display_Info display_get_info();
+bool display_next_event(Event *event);
+void display_end_frame();
 
 #endif // CEABED_DISPLAY_H

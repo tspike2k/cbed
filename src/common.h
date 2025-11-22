@@ -11,6 +11,51 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+//
+// Common types
+//
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef int8_t   s8;
+typedef int16_t  s16;
+typedef int32_t  s32;
+typedef int64_t  s64;
+
+//
+// OS compile-time constants
+//
+#ifdef __gnu_linux__
+#define OS_Linux
+#endif
+
+//
+// Common functions
+//
+
+void ceabed_begin();
+void ceabed_end();
+
+//
+// Buffers
+//
+
+typedef struct {
+    u8*    data;
+    size_t size;
+    size_t used;
+} Buffer;
+
+
+#define buffer_push_type(T, buffer) (T*)push_bytes(buffer, sizeof(T))
+void *buffer_push_bytes(Buffer *buffer, size_t bytes);
+char *buffer_push_text(Buffer *buffer, const char* text, size_t text_len);
+
+//
+// String formatting functions
+//
+
 typedef struct{
     uint32_t info; // TODO: This should contain both the arg type and an array count. Array count is limited!
     union{
@@ -39,26 +84,24 @@ typedef struct{
 // which will trigger a flush request with this callback.
 typedef void (*Fmt_Put_Func)(const char *text, size_t text_count, void *user_data);
 
-#define Fmt__Array_Len(a) (sizeof((a)) / sizeof((a)[0]))
+#define Array_Len(a) (sizeof((a)) / sizeof((a)[0]))
 
 // NOTE: If zero arguments are passed as varargs then fmt_args will still have a length of 1.
 // This shouldn't cause much of an issue as that bug can be pretty easily found, but it is a
 // limitation of this approach.
 #define fmt_msg(s, ...){                                        \
     Fmt_Arg fmt__args[] = {__VA_ARGS__};                        \
-    fmt_msg_raw((s), &fmt__args[0], Fmt__Array_Len(fmt__args)); \
+    fmt_msg_raw((s), &fmt__args[0], Array_Len(fmt__args)); \
 }
 
 #define fmt_buffer(s, dest, ...){                                        \
     Fmt_Arg fmt__args[] = {__VA_ARGS__};                                 \
-    fmt_buffer_raw((s), dest, &fmt__args[0], Fmt__Array_Len(fmt__args)); \
+    fmt_buffer_raw((s), dest, &fmt__args[0], Array_Len(fmt__args)); \
 }
 
 Fmt_Arg fmt_i(int64_t value);
 Fmt_Arg fmt_cstr(const char *s);
 
-void ceabed_begin();
-void ceabed_end();
 void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data);
 void fmt_msg_put(const char* msg, size_t msg_length);
 void fmt_msg_puts(const char* msg);

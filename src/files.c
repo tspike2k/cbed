@@ -11,7 +11,7 @@
 //------------------------------------------------------------------------------
 // OS_Linux
 //------------------------------------------------------------------------------
-#ifdef __gnu_linux__
+#ifdef OS_Linux
 
 #include <dlfcn.h>
 #include <unistd.h>
@@ -208,7 +208,71 @@ void delete_file(const char *file_path){
     unlink(file_path);
 }
 
-#endif // __gnu_linux__
+// Due to various oddities with POSIX, the most reliable way to test if a file exists is to simply
+// open the file. Both access and stat can give erronous results if the application is being
+// run with the SUID bit set. This seems to be a result of an issue called "TOCTOU."
+bool file_exists(const char *file_path){
+    bool result = false;
+    File file;
+    if(file_open(&file, file_path, File_Flag_Read)){
+        result = true;
+        file_close(&file);
+    }
+    return result;
+}
+
+#if 0
+typedef struct {
+    const char* name;
+    DIR         dir;
+    dirent* entry_stream;
+} File__Dir_Node;
+
+typedef struct {
+    File__Dir_Node *nodes;
+    uint32_t        nodes_used;
+    uint32_t        nodes_length;
+} File__Walker;
+
+static void file__walk_dir(File__Walker *walker, const char *dir_name){
+
+}
+
+void push_directory(String dir_name){
+        auto dir = opendir(dir_name.ptr);
+        if(dir){
+            Node* node;
+            if(node_first_free){
+                node = node_first_free;
+                node_first_free = node.next;
+            }
+            else{
+                node = alloc_type!Node(scratch);
+            }
+            node.path = dir_name;
+            nodes.insert(nodes.top, node);
+            node.dir = dir;
+        }
+    }
+
+
+File_Walker file_recurse_dir(const char *dir, const char *file_name_buffer, size_t file_name_buffer_size){
+    File_Walker result = {};
+    assert(sizeof(File__Walker) <= sizeof(File_Walker));
+    File__Walker *walker = (File__Walker*)&result;
+
+
+
+
+    return result;
+}
+
+file_recurse_next(File_Walker* walker){
+
+}
+#endif
+
+#endif // OS_Linux
 //------------------------------------------------------------------------------
 // OS_Linux
 //------------------------------------------------------------------------------

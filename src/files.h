@@ -35,9 +35,33 @@ size_t file_get_size(File* file);
 void file_delete(const char *file_path);
 size_t file_stream_in(File *file, void *buffer, size_t buffer_size);
 void file_stream_out(File *file, void *buffer, size_t buffer_size);
+bool file_exists(const char *file_path);
 
 File file_get_stdin();
 File file_get_stdout();
 File file_get_stderr();
+
+// TODO: Implement directory recursion
+#if 0
+typedef struct{
+    char internal[32];
+} File_Walker;
+
+enum File_Type: uint{
+    None,
+    File,
+    Directory,
+    Unknown,
+}
+
+struct File_Entry{
+    File_Type   type;
+    const char* name;
+}
+
+File_Walker file_recurse_dir(const char *dir, void *memory, size_t memory_size);
+File_Entry file_recurse_next(File_Walker* walker);
+
+#endif
 
 #endif // CEABED_FILES_H

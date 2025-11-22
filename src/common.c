@@ -56,7 +56,7 @@ static size_t fmt__s64(char *buffer, size_t buffer_length, int64_t value, uint32
 
 static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
     char temp_buffer[512];
-    size_t buffer_size = Fmt__Array_Len(temp_buffer);
+    size_t buffer_size = Array_Len(temp_buffer);
     switch(arg.info){
         default: assert(0); break;
 
@@ -70,6 +70,21 @@ static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
             put(s, strlen(s), dest);
         } break;
     }
+}
+
+void *buffer_push_bytes(Buffer *buffer, size_t bytes){
+    assert(buffer->used + bytes <= buffer->size);
+    void *result = &buffer->data[buffer->used];
+    buffer->used += bytes;
+    return result;
+}
+
+char *buffer_push_text(Buffer *buffer, const char* text, size_t text_len){
+    char *result = (char*)buffer_push_bytes(buffer, text_len);
+    if(result){
+        memcpy(result, text, text_len);
+    }
+    return result;
 }
 
 #ifdef __gnu_linux__
@@ -110,7 +125,7 @@ static void fmt__default(const char *text, size_t text_count, void *dest){
 }
 
 void ceabed_begin(){
-    fmt__buffer = fmt_make_buffer(&fmt__memory[0], Fmt__Array_Len(fmt__memory));
+    fmt__buffer = fmt_make_buffer(&fmt__memory[0], Array_Len(fmt__memory));
     fmt__msg_dest = &fmt__buffer;
     fmt__msg_put  = fmt__default;
 }

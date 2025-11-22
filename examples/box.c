@@ -6,8 +6,8 @@
 
 #include "common.c"
 #include "os.c"
+#include "display.h"
 #include "opengl.c"
-#include "display.c"
 #include "draw.c"
 #include "math.c"
 #include <stdbool.h>
@@ -41,6 +41,9 @@ int main(){
     uint32_t display_flags = Display_Flag_HW_Rendering;
     bool running = display_begin("Box", 1024, 768, display_flags)
         && draw_begin(&memory[0], Array_Length(memory));
+
+    Font test_font;
+    font_load_from_memory(&test_font, "test_font.fnt", NULL, 0);
 
     draw_init_layer(Draw_Layer_World, 4096);
     while(running){
