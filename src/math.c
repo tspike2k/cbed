@@ -3,6 +3,7 @@
 // Copyright: Copyright (c) 2024
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
+
 #include "math.h"
 
 Mat4 Mat4_Identity = {{
@@ -61,6 +62,34 @@ Mat4 mat4_transpose(Mat4 a){
     return result;
 }
 
+u64 round_up_power_of_two(u64 n){
+    // NOTE: Adapted from here:
+    // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    n--;
+    for(u32 byte_index = 0; byte_index < sizeof(u64); byte_index++){
+        n |= n >> ((u64)pow(2, byte_index)); // ^^ is the pow operator in D
+    }
+    n++;
+    return n;
+}
+
+u32 premultiply_alpha(u32 c){
+    u8 r = (c) & 0xff;
+    u8 g = (c >> 8) & 0xff;
+    u8 b = (c >> 16) & 0xff;
+    u8 a = (c >> 24) & 0xff;
+
+    float fa = ((float)a / 255.0f);
+    float fr = ((float)r / 255.0f) * fa;
+    float fg = ((float)g / 255.0f) * fa;
+    float fb = ((float)b / 255.0f) * fa;
+
+    u32 result = (u32)(a << 24)
+                | (u32)(fb * 255.0f + 0.5f) << 16
+                | (u32)(fg * 255.0f + 0.5f) << 8
+                | (u32)(fr * 255.0f + 0.5f);
+    return result;
+}
 
 #if 0
 

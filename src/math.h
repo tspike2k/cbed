@@ -7,6 +7,15 @@
 #ifndef CEABED_MATH_HPP
 #define CEABED_MATH_HPP
 
+#include "common.h"
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+extern double pow(double x, double y);
+extern double ceil(double x);
+extern double sqrt(double x);
+
 #define PI  3.141592653589793f
 #define TAU (PI*2.0f)
 
@@ -18,8 +27,13 @@ typedef struct{
     float x, y, z;
 } Vec3;
 
-typedef struct{
-    float x, y, z, w;
+typedef union{
+    struct {
+        float x, y, z, w;
+    };
+    struct {
+        float r, g, b, a;
+    };
 } Vec4;
 
 typedef struct{
@@ -35,5 +49,8 @@ Mat4 mat4_mul(Mat4 a, Mat4 b);
 Mat4 mat4_transpose(Mat4 a);
 
 extern Mat4 Mat4_Identity;
+
+u32 premultiply_alpha(u32 c);
+
 
 #endif // CEABED_MATH_HPP

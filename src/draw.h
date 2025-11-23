@@ -56,7 +56,7 @@ typedef struct{
 typedef struct{
     uint32_t a;
     uint32_t b;
-} Font_Kerning_Pair;
+} Font_Kerning;
 
 // TODO: I'm of two minds on how to handle fonts in the game. On the one hand, we could do like
 // we've done in earlier projects. We load the font file into memory, extract and copy the data
@@ -72,9 +72,9 @@ typedef struct{
     Font_Glyph    *glyphs;
     Font_Glyph     null_glyph;
 
-    uint32_t           kerning_pairs_count;
-    Font_Kerning_Pair *kerning_pairs;
-    float             *kerning_advance;
+    uint32_t      kerning_pairs_count;
+    Font_Kerning *kerning_pairs;
+    float        *kerning_advance;
 
     uint32_t  pixels_width;
     uint32_t  pixels_height;

@@ -47,10 +47,13 @@ typedef struct {
     size_t used;
 } Buffer;
 
-
-#define buffer_push_type(T, buffer) (T*)push_bytes(buffer, sizeof(T))
+#define buffer_push_array(T, buffer, count) (T*)buffer_push_bytes(buffer, sizeof(T)*(count))
+#define buffer_push_type(T, buffer) (T*)buffer_push_bytes(buffer, sizeof(T))
 void *buffer_push_bytes(Buffer *buffer, size_t bytes);
-char *buffer_push_text(Buffer *buffer, const char* text, size_t text_len);
+
+#define buffer_write_text(buffer, text, text_size) (char*)buffer_write(buffer, text, text_size)
+#define buffer_write_type(buffer, t) buffer_write(buffer, t, sizeof(*t))
+void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
 
 //
 // String formatting functions

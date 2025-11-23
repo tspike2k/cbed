@@ -57,16 +57,9 @@ static Draw_Layer *draw__get_active_layer(){
     return result;
 }
 
-static void *draw__push_bytes(Buffer *buffer, size_t bytes){
-    assert(bytes <= buffer->size - buffer->used);
-    void *result = &buffer->data[buffer->used];
-    buffer->used += bytes;
-    return result;
-}
-
 static void draw__push_command(uint32_t cmd_type, uint32_t cmd_size){
     Draw_Layer *layer = draw__get_active_layer();
-    Draw_Cmd_Header *header = (Draw_Cmd_Header *)draw__push_bytes(&layer->buffer, cmd_size);
+    Draw_Cmd_Header *header = (Draw_Cmd_Header *)buffer_push_bytes(&layer->buffer, cmd_size);
     header->type = cmd_type;
     header->size = cmd_size;
 
@@ -127,7 +120,7 @@ void draw_quad(float px, float py, float w, float h, uint32_t color){
     }
     layer->last_cmd->size += vertex_size;
 
-    Draw_Vertex *v = draw__push_bytes(&layer->buffer, vertex_size);
+    Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
     Vec3 p0 = {px + w, py}; // Top-right
     Vec3 p1 = {px, py}; // Top-left
     Vec3 p2 = {px, py - h}; // Bottom-left

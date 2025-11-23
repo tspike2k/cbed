@@ -185,6 +185,14 @@ size_t file_get_size(File* file){
     return result;
 }
 
+void file_write_from_memory(const char *file_name, void *data, size_t size){
+    File file;
+    if(file_open(&file, file_name, File_Flag_Write)){
+        file_write(&file, 0, data, size);
+        file_close(&file);
+    }
+}
+
 File file_get_stdin(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Read;
     File result = {flags, 0};
@@ -220,6 +228,7 @@ bool file_exists(const char *file_path){
     }
     return result;
 }
+
 
 #if 0
 typedef struct {

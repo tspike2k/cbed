@@ -79,12 +79,11 @@ void *buffer_push_bytes(Buffer *buffer, size_t bytes){
     return result;
 }
 
-char *buffer_push_text(Buffer *buffer, const char* text, size_t text_len){
-    char *result = (char*)buffer_push_bytes(buffer, text_len);
+void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
+    char *result = (char*)buffer_push_bytes(buffer, data_size);
     if(result){
-        memcpy(result, text, text_len);
+        memcpy(result, data, data_size);
     }
-    return result;
 }
 
 #ifdef __gnu_linux__
