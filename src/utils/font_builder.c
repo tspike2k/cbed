@@ -14,6 +14,7 @@ See accompanying file LICENSE_BOOST.txt or copy at http://www.boost.org/LICENSE_
 #include "files.c"
 #include "math.c"
 #include "atlas.c"
+#include "img.c"
 
 extern size_t strlen(const char *s);
 
@@ -176,45 +177,47 @@ static bool rasterize_glyph_and_copy_metrics(Font_Builder *builder, u32 codepoin
     FT_Stroker  stroker    = builder->stroker;
     Font_Entry* font_entry = builder->font_entry;
 
-    FT_BitmapGlyph bitmap_glyph = make_bitmap_glyph(face, stroker, codepoint, font_entry->stroke);
     dest->codepoint     = codepoint;
-    dest->pixels_width  = bitmap_glyph->bitmap.width;
-    dest->pixels_height = bitmap_glyph->bitmap.rows;
-    dest->pixels        = (u32*)buffer_push_bytes(&builder->memory, sizeof(u32)*dest->pixels_width*dest->pixels_height);
+    if(codepoint != ' '){
+        FT_BitmapGlyph bitmap_glyph = make_bitmap_glyph(face, stroker, codepoint, font_entry->stroke);
 
-    // Copy glyph metrics
-    Font_Glyph *glyph = &dest->glyph;
-    glyph->width      = dest->pixels_width;
-    glyph->height     = dest->pixels_height;
-    glyph->advance    = ((u32)face->glyph->advance.x) >> 6;
+        // Copy glyph metrics
+        Font_Glyph *glyph = &dest->glyph;
+        glyph->advance    = ((u32)face->glyph->advance.x) >> 6;
+        glyph->width      = dest->pixels_width;
+        glyph->height     = dest->pixels_height;
+        // NOTE: The offset values are added to the pen position to correctly align the glyph bitmap
+        // when rendering text. The x-offset is the left-side bearing of the glyph. The y-offset
+        // expects glyph bitmaps to be drawn from the bottom-left, with the y-axis growing upwards.
+        // The value of the y-offset is the descender and will be negative for glyphs that extend
+        // below the baseline.
+        //
+        // FT_BitmapGlyph.left:        left-side bearing
+        // FT_BitmapGlyph.top:         top-side bearing (ascender?)
+        // FT_BitmapGlyph.bitmap.rows: glyph pixel height
+        glyph->offset.x  = bitmap_glyph->left;
+        // NOTE: We must cast before negation as the metrics are unsigned integers
+        glyph->offset.y  = -((float)(bitmap_glyph->bitmap.rows) - (float)(bitmap_glyph->top)) + (float)font_entry->stroke;
 
-    // NOTE: The offset values are added to the pen position to correctly align the glyph bitmap
-    // when rendering text. The x-offset is the left-side bearing of the glyph. The y-offset
-    // expects glyph bitmaps to be drawn from the bottom-left, with the y-axis growing upwards.
-    // The value of the y-offset is the descender and will be negative for glyphs that extend
-    // below the baseline.
-    //
-    // FT_BitmapGlyph.left:        left-side bearing
-    // FT_BitmapGlyph.top:         top-side bearing (ascender?)
-    // FT_BitmapGlyph.bitmap.rows: glyph pixel height
-    glyph->offset.x  = bitmap_glyph->left;
-    // NOTE: We must cast before negation as the metrics are unsigned integers
-    glyph->offset.y  = -((float)(bitmap_glyph->bitmap.rows) - (float)(bitmap_glyph->top)) + (float)font_entry->stroke;
+        dest->pixels_width  = bitmap_glyph->bitmap.width;
+        dest->pixels_height = bitmap_glyph->bitmap.rows;
+        dest->pixels        = (u32*)buffer_push_bytes(&builder->memory, sizeof(u32)*dest->pixels_width*dest->pixels_height);
 
-    u32 target_color = font_entry->stroke == 0 ? builder->fill_color : builder->stroke_color;
-    blit_to_dest(bitmap_glyph, dest, target_color, 0, 0);
+        u32 target_color = font_entry->stroke == 0 ? builder->fill_color : builder->stroke_color;
+        blit_to_dest(bitmap_glyph, dest, target_color, 0, 0);
 
-    if(font_entry->stroke){
-        u32 stroke_left = bitmap_glyph->left;
-        u32 stroke_top  = bitmap_glyph->top;
+        if(font_entry->stroke){
+            u32 stroke_left = bitmap_glyph->left;
+            u32 stroke_top  = bitmap_glyph->top;
 
-        bitmap_glyph = make_bitmap_glyph(face, stroker, codepoint, 0);
-        u32 fill_offset_x = bitmap_glyph->left - stroke_left;
-        u32 fill_offset_y = stroke_top - bitmap_glyph->top; // In Freetype the Y-axis of bitmaps grows upwards, hence the flipped subtraction.
-        blit_to_dest(bitmap_glyph, dest, builder->fill_color, fill_offset_x, fill_offset_y);
+            bitmap_glyph = make_bitmap_glyph(face, stroker, codepoint, 0);
+            u32 fill_offset_x = bitmap_glyph->left - stroke_left;
+            u32 fill_offset_y = stroke_top - bitmap_glyph->top; // In Freetype the Y-axis of bitmaps grows upwards, hence the flipped subtraction.
+            blit_to_dest(bitmap_glyph, dest, builder->fill_color, fill_offset_x, fill_offset_y);
 
-        glyph->offset.x += fill_offset_x;
-        //glyph.offset.y += fill_offset_y; // TODO: Should we account for stroke on the y-axis?
+            glyph->offset.x += fill_offset_x;
+            //glyph.offset.y += fill_offset_y; // TODO: Should we account for stroke on the y-axis?
+        }
     }
 
     return succeeded;
@@ -261,17 +264,14 @@ static bool begin_building_font(Font_Builder *builder, const char *source_file_n
     return true;
 }
 
-#define write_type_to_section(section, buffer, t) write_to_section(section, buffer, t, sizeof(*t))
-static void write_to_section(Font_Section *section, Buffer *dest, void *data, size_t data_size){
-    section->size += data_size;
-    buffer_write(dest, data, data_size);
-}
-
-static Font_Section *push_section(Buffer *buffer, u32 section_type){
+static Font_Section *begin_section(Buffer *buffer, u32 section_type){
     Font_Section *result = buffer_push_type(Font_Section, buffer);
     result->type = section_type;
-    result->size = sizeof(Font_Section);
     return result;
+}
+
+static void end_section(Buffer *buffer, Font_Section* section){
+    section->size = &buffer->data[buffer->used] - (u8*)section;
 }
 
 void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
@@ -288,19 +288,94 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
     Buffer *dest = &builder->memory;
     buffer_write_type(dest, &header);
 
-    Font_Section *section = push_section(dest, Font_Section_Glyphs);
+    //
+    // Metrics
+    //
+    Font_Section *section = begin_section(dest, Font_Section_Metrics);
+    buffer_write_type(dest, &builder->metrics);
+    end_section(dest, section);
+
+    //
+    // Glyphs
+    //
+    section = begin_section(dest, Font_Section_Glyphs);
+    Font_Glyph null_glyph = {0};
+    buffer_write_type(dest, &null_glyph);
+
     u32 glyphs_count = atlas->items_count;
-    write_type_to_section(section, dest, &glyphs_count);
+    buffer_write_type(dest, &glyphs_count);
 
-    file_write_from_memory(font_entry->dest_file_name, &dest->data[dest_start], dest->used - dest_start);
-
-/*
-    u32 canvas_width   = atlas->canvas_width;
-    u32 canvas_height  = atlas->canvas_height;
-    u32 *canvas_pixels = (u32*)buffer_push_bytes(&builder->memory, sizeof(u32)*canvas_width*canvas_height);
+    u32 *glyph_codepoints = buffer_push_array(u32, dest, glyphs_count);
+    Font_Glyph *glyhs     = buffer_push_array(Font_Glyph, dest, glyphs_count);
 
     Atlas_Node *node = atlas->items;
+    u32 glyph_index = 0;
+    while(node){
+        assert(glyph_index < glyphs_count);
+        Rasterized_Glyph *entry = (Rasterized_Glyph*)node->source;
+        glyph_codepoints[glyph_index] = entry->codepoint;
+        glyhs[glyph_index] = entry->glyph;
+        glyph_index++;
+
+        node = node->next;
+    }
+    assert(glyph_index == glyphs_count);
+
+    end_section(dest, section);
+
+    //
+    // Kerning
+    //
+    section = begin_section(dest, Font_Section_Kerning);
+    u32 kerning_pairs_count = glyphs_count*glyphs_count;
+    buffer_write_type(dest, &kerning_pairs_count);
+
+    Font_Kerning *kerning_pairs   = buffer_push_array(Font_Kerning, dest, kerning_pairs_count);
+    float        *kerning_advance = buffer_push_array(float, dest, kerning_pairs_count);;
+
+    u32 kerning_index = 0;
+    Atlas_Node *node_a = atlas->items;
+    while(node_a){
+        Atlas_Node *node_b  = atlas->items;
+        Rasterized_Glyph *glyph_a = (Rasterized_Glyph*)node_a->source;
+        while(node_b){
+            Rasterized_Glyph* glyph_b = (Rasterized_Glyph*)node_b->source;
+
+            u32 codepoint_a = glyph_a->codepoint;
+            u32 codepoint_b = glyph_b->codepoint;
+
+            u32 glyph_index_a = FT_Get_Char_Index(builder->face, codepoint_a);
+            u32 glyph_index_b = FT_Get_Char_Index(builder->face, codepoint_b);
+
+            FT_Vector kerning = {0, 0};
+            FT_Get_Kerning(builder->face, glyph_index_a, glyph_index_b, FT_KERNING_DEFAULT, &kerning);
+
+            kerning_pairs[kerning_index]   = (Font_Kerning){codepoint_a, codepoint_b};
+            kerning_advance[kerning_index] = (kerning.x >> 6);
+            kerning_index++;
+
+            node_b = node_b->next;
+        }
+
+        node_a = node_a->next;
+    }
+    assert(kerning_index == kerning_pairs_count);
+    end_section(dest, section);
+
+    //
+    // Pixels
+    //
+    section = begin_section(dest, Font_Section_Pixels);
+
+    u32 canvas_width   = atlas->canvas_width;
+    u32 canvas_height  = atlas->canvas_height;
+    u32 *canvas_pixels = (u32*)buffer_push_bytes(dest, sizeof(u32)*canvas_width*canvas_height);
+
+    buffer_write_type(dest, &canvas_width);
+    buffer_write_type(dest, &canvas_height);
+
     // Copy all rasterized glyphs into the sprite atlas.
+    node = atlas->items;
     while(node){
         Rasterized_Glyph *glyph = (Rasterized_Glyph*)node->source;
         Font_Glyph *glyph_info  = &glyph->glyph;
@@ -336,96 +411,16 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
 
         node = node->next;
     }
-*/
+    end_section(dest, section);
 
-#if 0
-    // Build the kerning table
-    u32 kerning_count           = atlas->items_count*atlas->items_count;
-    Font_Kerning *kerning_pairs = buffer_push_array(Font_Kerning, &builder->memory, kerning_count);
-    float *     kerning_advance = buffer_push_array(float, &builder->memory, kerning_count);
+    file_write_from_memory(font_entry->dest_file_name, &dest->data[dest_start], dest->used - dest_start);
 
-    auto face = builder->face;
-
-    u32 kerning_index = 0;
-    auto item_a = atlas.items;
-    while(item_a){
-        auto item_b = atlas.items;
-        auto glyph_a = cast(Rasterized_Glyph*)item_a.source;
-        while(item_b){
-            auto glyph_b = cast(Rasterized_Glyph*)item_b.source;
-
-            auto codepoint_a = glyph_a.glyph.codepoint;
-            auto codepoint_b = glyph_b.glyph.codepoint;
-
-            auto glyph_index_a = FT_Get_Char_Index(face, codepoint_a);
-            auto glyph_index_b = FT_Get_Char_Index(face, codepoint_b);
-
-            FT_Vector kerning = FT_Vector(0, 0);
-            FT_Get_Kerning(builder.face, glyph_index_a, glyph_index_b, FT_KERNING_DEFAULT, &kerning);
-
-            kerning_pairs[kerning_index]   = Kerning_Pair(codepoint_a, codepoint_b);
-            kerning_advance[kerning_index] = (kerning.x >> 6);
-            kerning_index++;
-
-            item_b = item_b.next;
-        }
-
-        item_a = item_a.next;
-    }
-    assert(kerning_index == kerning_count);
-
-    auto trimmed_file_name = trim_file_extension(trim_leading_path(font_entry.dest_file_name));
-    auto dest_tga_file_name = gen_string("{0}.tga", trimmed_file_name, allocator);
-    save_tga_file(dest_tga_file_name, canvas_data.ptr, canvas_width, canvas_height, allocator);
-
-    auto dest_memory = begin_reserve_all(allocator);
-    auto writer = Serializer(dest_memory);
-
-    Asset_Header header;
-    header.magic        = Font_Meta.magic;
-    header.file_version = Font_Meta.file_version;
-    header.asset_type   = Font_Meta.type;
-    write(&writer, header);
-
-    auto section = begin_writing_section(&writer, Font_Section.Metrics);
-    write(&writer, builder.metrics);
-    end_writing_section(&writer, section);
-
-    section = begin_writing_section(&writer, Font_Section.Pixels);
-    write(&writer, canvas_width);
-    write(&writer, canvas_height);
-    copy(canvas_data, eat_array!uint(&writer, canvas_width*canvas_height));
-    end_writing_section(&writer, section);
-
-    section = begin_writing_section(&writer, Font_Section.Glyphs);
-    uint glyphs_count = atlas.items_count;
-    write(&writer, glyphs_count);
-    node = atlas.items;
-    auto node_i = 0;
-    while(node){
-        auto entry = cast(Rasterized_Glyph*)node->source;
-        write(&writer, entry.glyph);
-        node = node->next;
-        node_i++;
-    }
-    assert(node_i == glyphs_count);
-    end_writing_section(&writer, section);
-
-    if(kerning_count > 0){
-        section = begin_writing_section(&writer, Font_Section.Kerning);
-        write(&writer, kerning_count);
-
-        foreach(ref entry; kerning_pairs){
-            write(&writer, entry);
-        }
-
-        foreach(ref entry; kerning_advance){
-            write(&writer, entry);
-        }
-
-        end_writing_section(&writer, section);
-    }
-#endif
+    // Save a preview file of the resulting pixels
+    size_t dest_file_name_len = strlen(font_entry->dest_file_name);
+    const char *tga_name = buffer_write_text(&builder->memory, font_entry->dest_file_name, dest_file_name_len-3);
+    buffer_write_text(&builder->memory, "tga", 3);
+    push_null_char(&builder->memory);
+    img_save_tga(&builder->memory, tga_name, canvas_width, canvas_height, canvas_pixels);
 
     if(font_entry->stroke) FT_Stroker_Done(builder->stroker);
     FT_Done_Face(builder->face);
@@ -445,7 +440,7 @@ int main(){
             if(src_path){
                 if(begin_building_font(&builder, src_path, entry)){
                     for(char c = '!'; c < '~'+1; c++){
-                        /*add_codepoint(&builder, c);*/
+                        add_codepoint(&builder, c);
                     }
                     add_codepoint(&builder, ' ');
                     end_building_font(&builder, entry);

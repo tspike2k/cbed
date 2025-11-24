@@ -56,6 +56,18 @@ void *buffer_push_bytes(Buffer *buffer, size_t bytes);
 void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
 
 //
+// Scratch memory
+//
+
+#if 0
+#define Scratch_Memory_Size (8*1024*1024)
+
+extern Buffer scratch_memory;
+void          scratch_push_frame();
+void          scratch_pop_frame();
+#endif
+
+//
 // String formatting functions
 //
 

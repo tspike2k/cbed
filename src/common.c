@@ -75,15 +75,17 @@ static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
 void *buffer_push_bytes(Buffer *buffer, size_t bytes){
     assert(buffer->used + bytes <= buffer->size);
     void *result = &buffer->data[buffer->used];
+    memset(result, 0, bytes);
     buffer->used += bytes;
     return result;
 }
 
 void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
-    char *result = (char*)buffer_push_bytes(buffer, data_size);
+    void *result = buffer_push_bytes(buffer, data_size);
     if(result){
         memcpy(result, data, data_size);
     }
+    return result;
 }
 
 #ifdef __gnu_linux__
