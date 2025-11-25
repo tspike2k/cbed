@@ -21,8 +21,8 @@ enum{
 // NOTE: The size field of the command header includes the size of the command header, the
 // rest of the command data, and any additional data associated with it.
 typedef struct{
-    uint32_t type;
-    uint32_t size;
+    u32 type;
+    u32 size;
 } Draw_Cmd_Header;
 
 typedef struct{
@@ -34,7 +34,7 @@ typedef struct {
     Vec3 pos;
     Vec3 normal;
     Vec2 uv;
-    uint32_t color;
+    u32 color;
 } Draw_Vertex;
 
 typedef struct {
@@ -45,8 +45,8 @@ typedef struct {
 typedef struct{
     bool        hw_rendering;
     Draw_Layer  layers[Draw_Layer_Total];
-    Buffer      memory;
-    uint32_t    layer_index;
+    Buffer     *memory;
+    u32         layer_index;
     Vec2        solid_quad_uvs_min;
     Vec2        solid_quad_uvs_max;
 } Draw_State_Common;
@@ -57,7 +57,7 @@ static Draw_Layer *draw__get_active_layer(){
     return result;
 }
 
-static void draw__push_command(uint32_t cmd_type, uint32_t cmd_size){
+static void draw__push_command(u32 cmd_type, u32 cmd_size){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Header *header = (Draw_Cmd_Header *)buffer_push_bytes(&layer->buffer, cmd_size);
     header->type = cmd_type;
@@ -92,25 +92,25 @@ Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
     return result;
 }
 
-void draw_init_layer(uint32_t layer_id, size_t buffer_size){
+void draw_init_layer(u32 layer_id, size_t buffer_size){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
 
     assert(layer_id < Draw_Layer_Total);
     Draw_Layer *layer = &s->layers[layer_id];
-    Buffer *memory = &s->memory;
+    Buffer *memory = s->memory;
     assert(buffer_size <= memory->size - memory->used);
     layer->buffer = (Buffer){&memory->data[memory->used], buffer_size};
     memory->used += buffer_size;
 }
 
-uint32_t draw_set_layer(uint32_t layer_index){
+u32 draw_set_layer(u32 layer_index){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
-    uint32_t result = s->layer_index;
+    u32 result = s->layer_index;
     s->layer_index = layer_index;
     return result;
 }
 
-void draw_quad(float px, float py, float w, float h, uint32_t color){
+void draw_quad(float px, float py, float w, float h, u32 color){
     Draw_Layer *layer = draw__get_active_layer();
 
     // TODO: Use index buffer to use only 4 bytes
@@ -145,9 +145,9 @@ void draw_quad(float px, float py, float w, float h, uint32_t color){
 // Font
 //
 
-Font_Glyph* get_glyph(Font* font, uint32_t codepoint){
+Font_Glyph* get_glyph(Font* font, u32 codepoint){
     Font_Glyph* result = &font->null_glyph;
-    for(uint32_t i = 0; i < font->glyphs_count; i++){
+    for(u32 i = 0; i < font->glyphs_count; i++){
         if(font->glyph_codepoints[i] == codepoint){
             result = &font->glyphs[i];
             break;
@@ -156,10 +156,10 @@ Font_Glyph* get_glyph(Font* font, uint32_t codepoint){
     return result;
 }
 
-float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint){
+float font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
     float result = 0;
-    for(uint32_t i = 0; i < font->kerning_pairs_count; i++){
-        Font_Kerning_Pair *entry = &font->kerning_pairs[i];
+    for(u32 i = 0; i < font->kerning_pairs_count; i++){
+        Font_Kerning *entry = &font->kerning_pairs[i];
         if(entry->a == prev_codepoint && entry->b == codepoint){
             result = font->kerning_advance[i];
             break;
@@ -178,14 +178,6 @@ static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
         *error = true;
     }
 
-    return result;
-}
-
-static void *draw__read_bytes_expect_end(Buffer *buffer, size_t bytes, bool *error){
-    void *result = draw__read_bytes(buffer, bytes, error);
-    if(buffer->used != buffer->size){
-        *error = true;
-    }
     return result;
 }
 
@@ -231,17 +223,19 @@ bool font_load_from_memory(Font* font, const char* font_name, void *memory, size
 
         switch(section->type){
             case Font_Section_Metrics:{
-                font->metrics = (Font_Metrics*)draw__read_bytes_expect_end(&payload, sizeof(Font_Metrics), &error);
+                font->metrics = (Font_Metrics*)draw__read_bytes(&payload, sizeof(Font_Metrics), &error);
             } break;
 
             case Font_Section_Glyphs:{
-                uint32_t *count = (uint32_t*)draw__read_bytes(&payload, sizeof(uint32_t), &error);
-                if(count){
+                Font_Glyph *null_glyph = draw__read_bytes(&payload, sizeof(Font_Glyph), &error);
+                u32 *count = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
+                if(null_glyph && count){
+                    font->null_glyph = *null_glyph;
                     font->glyphs_count = *count;
-                    font->glyph_codepoints = (uint32_t*)draw__read_bytes(
-                        &payload, sizeof(uint32_t) * font->glyphs_count, &error
+                    font->glyph_codepoints = (u32*)draw__read_bytes(
+                        &payload, sizeof(u32) * font->glyphs_count, &error
                     );
-                    font->glyphs = (Font_Glyph*)draw__read_bytes_expect_end(
+                    font->glyphs = (Font_Glyph*)draw__read_bytes(
                         &payload, sizeof(Font_Glyph) * font->glyphs_count, &error
                     );
                 }
@@ -250,7 +244,7 @@ bool font_load_from_memory(Font* font, const char* font_name, void *memory, size
             case Font_Section_Kerning:
             case Font_Section_Pixels:
             case Font_Section_Blank_UVs:
-                assert(0);
+                continue;
         }
 
         if(error){
@@ -426,12 +420,12 @@ void destroy_shader(Shader* shader){
 }
 #endif
 
-bool draw_begin(void *memory, size_t memory_size){
+bool draw_begin(Buffer *memory){
     Draw_State *s = &draw__state;
 
     Display_Info info = display_get_info();
     s->common.hw_rendering = info.window_flags & Display_Flag_HW_Rendering;
-    s->common.memory = (Buffer){memory, memory_size};
+    s->common.memory = memory;
 
     bool success = true;
     if(s->common.hw_rendering){
@@ -534,7 +528,7 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
 
                 case Draw_Cmd_Type_Quad:{
                     size_t vertex_count = (header->size - sizeof(Draw_Cmd_Quad)) / sizeof(Draw_Vertex);
-                    uint32_t total_vertex_size = vertex_count * sizeof(Draw_Vertex);
+                    u32 total_vertex_size = vertex_count * sizeof(Draw_Vertex);
 
                     size_t cmd_payload_pos = cmd_cursor + sizeof(Draw_Cmd_Quad);
                     void *v = &cmd_buffer->data[cmd_payload_pos];
@@ -554,7 +548,7 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
 
 void draw_frame_end(){
     Draw_State *s = &draw__state;
-    for(uint32_t layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
+    for(u32 layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
         Draw_Layer *layer = &s->common.layers[layer_index];
         draw__layer(s, layer);
         layer->buffer.used = 0;

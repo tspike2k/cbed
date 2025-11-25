@@ -7,6 +7,11 @@
 #ifndef CEABED_DRAW_H
 #define CEABED_DRAW_H
 
+// TODO: Rather than giving each layer a fixed-size buffer, perhaps we should go back to
+// a linked-list approach. Calls to draw_text would allocate a command and a quad for every
+// character in the string. This would complicate the internals, but simplify the API.
+// Perhaps it's worth it?
+
 #include <stdint.h>
 #include <stddef.h>
 #include "math.h"
@@ -27,11 +32,12 @@ typedef struct{
 
 Mat4_Pair orthographic_projection(Rect bounds, float n, float f);
 
-bool draw_begin(void *memory, size_t memory_count);
+bool draw_begin(Buffer *memory);
 void draw_end();
 void draw_frame_begin();
 void draw_frame_end();
 void draw_quad(float px, float py, float w, float h, uint32_t color);
+void draw_init_layer(u32 layer_id, size_t buffer_size);
 
 //
 // Fonts

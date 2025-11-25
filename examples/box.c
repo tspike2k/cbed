@@ -9,41 +9,23 @@
 #include "display.h"
 #include "opengl.c"
 #include "draw.c"
+#include "files.c"
 #include "math.c"
 #include <stdbool.h>
 
-#define Array_Length(a) (sizeof(a) / sizeof(a[0]))
-
-#define MIN(a, b) (a) < (b) ? (a) : (b);
-#define MAX(a, b) (a) > (b) ? (a) : (b);
-
-#if 0
-static void draw_rect(Display_Backbuffer *buffer, int x, int y, int w, int h, uint32_t color){
-    uint32_t min_x = MAX(0, x);
-    uint32_t min_y = MAX(0, y);
-    uint32_t max_x = MAX(0, x + w);
-    uint32_t max_y = MAX(0, y + h);
-
-    max_x = MIN(max_x, buffer->width);
-    max_y = MIN(max_y, buffer->height);
-
-    for(uint32_t y = min_y; y < max_y; y++){
-        for(uint32_t x = min_x; x < max_x; x++){
-            buffer->pixels[x + y * buffer->width] = color;
-        }
-    }
-}
-#endif
-
-uint8_t memory[4*1024*1024];
+u8 g_memory[4*1024*1024];
 
 int main(){
-    uint32_t display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Box", 1024, 768, display_flags)
-        && draw_begin(&memory[0], Array_Length(memory));
+    Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
+    u32 display_flags = Display_Flag_HW_Rendering;
+    bool running = display_begin("Box", 1024, 768, display_flags)
+        && draw_begin(&memory);
+
+    const char *font_file_name = "./bin/font.fnt";
+    String font_memory = file_read_into_memory(font_file_name, &memory);
     Font test_font;
-    font_load_from_memory(&test_font, "test_font.fnt", NULL, 0);
+    font_load_from_memory(&test_font, font_file_name, font_memory.text, font_memory.size);
 
     draw_init_layer(Draw_Layer_World, 4096);
     while(running){

@@ -38,6 +38,15 @@ void ceabed_begin();
 void ceabed_end();
 
 //
+// Strings
+//
+
+typedef struct{
+    char*  text;
+    size_t size;
+} String;
+
+//
 // Buffers
 //
 

@@ -193,6 +193,20 @@ void file_write_from_memory(const char *file_name, void *data, size_t size){
     }
 }
 
+String file_read_into_memory(const char *file_name, Buffer *buffer){
+    File file;
+    String result = {};
+    if(file_open(&file, file_name, File_Flag_Read)){
+        size_t size = file_get_size(&file);
+        char *contents = (char*)buffer_push_bytes(buffer, size+1);
+        file_read(&file, 0, contents, size);
+        contents[size] = '\0';
+        result = (String){contents, size};
+        file_close(&file);
+    }
+    return result;
+}
+
 File file_get_stdin(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Read;
     File result = {flags, 0};

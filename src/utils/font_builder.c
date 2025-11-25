@@ -219,6 +219,11 @@ static bool rasterize_glyph_and_copy_metrics(Font_Builder *builder, u32 codepoin
             //glyph.offset.y += fill_offset_y; // TODO: Should we account for stroke on the y-axis?
         }
     }
+    else{
+        FT_Load_Char(face, ' ', FT_LOAD_DEFAULT);
+        Font_Glyph *glyph = &dest->glyph;
+        glyph->advance    = ((u32)face->glyph->advance.x) >> 6;
+    }
 
     return succeeded;
 }

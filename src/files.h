@@ -38,6 +38,7 @@ void file_stream_out(File *file, void *buffer, size_t buffer_size);
 bool file_exists(const char *file_path);
 
 void file_write_from_memory(const char *file_name, void *data, size_t size);
+String file_read_into_memory(const char *file_name, Buffer *buffer);
 
 File file_get_stdin();
 File file_get_stdout();
