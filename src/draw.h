@@ -37,7 +37,11 @@ void draw_end();
 void draw_frame_begin();
 void draw_frame_end();
 void draw_quad(float px, float py, float w, float h, uint32_t color);
+void draw_quad_textured(float px, float py, float w, float h, uint32_t color, Draw_Texture texture);
 void draw_init_layer(u32 layer_id, size_t buffer_size);
+
+Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
+void draw_destroy_texture(Draw_Texture *texture);
 
 //
 // Fonts
@@ -91,7 +95,7 @@ typedef struct{
     Vec2      blank_uv_min;
     Vec2      blank_uv_max;
 
-    uint64_t texture_handle;
+    uint64_t texture;
 } Font;
 
 #define Font_File_Magic (('F' << 0) | ('o' << 8) | ('n' << 16) | ('t' << 24))

@@ -62,7 +62,7 @@ static Font_Entry Font_Entries[] = {
     {
         .height=18, .stroke=0,
         .fill_color=0xffffffff, .stroke_color= 0x000000ff,
-        .dest_file_name="./font.fnt",
+        .dest_file_name="font.fnt",
         .source_file_name="DejaVuSerif.ttf"
     },
 };
@@ -159,7 +159,7 @@ static void blit_to_dest(FT_BitmapGlyph bitmap_glyph, Rasterized_Glyph* dest, u3
     for(u32 y = 0; y < h; y++){
         for(u32 x = 0; x < w; x++){
             u32 alpha = bitmap_glyph->bitmap.buffer[x + y*w];
-            u32 color = premultiply_alpha((target_color & 0x00ffffff) | (alpha << 24)); // TODO: Wait, doesn't this literally do nothing?
+            u32 color = premultiply_alpha((target_color & 0x00ffffff) | (alpha << 24));
 
             u32 pixel_index = offset_x+x + (offset_y+y)*dest->pixels_width;
             assert(pixel_index < dest->pixels_width*dest->pixels_height);
@@ -374,10 +374,10 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
 
     u32 canvas_width   = atlas->canvas_width;
     u32 canvas_height  = atlas->canvas_height;
-    u32 *canvas_pixels = (u32*)buffer_push_bytes(dest, sizeof(u32)*canvas_width*canvas_height);
 
     buffer_write_type(dest, &canvas_width);
     buffer_write_type(dest, &canvas_height);
+    u32 *canvas_pixels = (u32*)buffer_push_bytes(dest, sizeof(u32)*canvas_width*canvas_height);
 
     // Copy all rasterized glyphs into the sprite atlas.
     node = atlas->items;

@@ -25,7 +25,9 @@ int main(){
     const char *font_file_name = "./bin/font.fnt";
     String font_memory = file_read_into_memory(font_file_name, &memory);
     Font test_font;
-    font_load_from_memory(&test_font, font_file_name, font_memory.text, font_memory.size);
+    if(!font_load_from_memory(&test_font, font_file_name, font_memory.text, font_memory.size)){
+        fmt_msg("Error loading font.\n");
+    }
 
     draw_init_layer(Draw_Layer_World, 4096);
     while(running){

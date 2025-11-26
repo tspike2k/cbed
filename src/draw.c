@@ -7,8 +7,13 @@
 #include "common.h"
 #include "draw.h"
 
+// TODO: We should have a #define that states what rendering backend we're targeting.
+// If it's not defined, we select the best one for the given system.
+
 #define Draw__Offsetof(T, member) ((size_t)&(((T*)0)->member))
 #define Draw__Array_Length(a) ( (sizeof(a) / sizeof(a[0])) )
+
+#define Draw_Texture_Null 0
 
 typedef struct Draw_State Draw_State;
 static Draw_State draw__state;
@@ -43,12 +48,13 @@ typedef struct {
 } Draw_Layer;
 
 typedef struct{
-    bool        hw_rendering;
-    Draw_Layer  layers[Draw_Layer_Total];
-    Buffer     *memory;
-    u32         layer_index;
-    Vec2        solid_quad_uvs_min;
-    Vec2        solid_quad_uvs_max;
+    bool         hw_rendering;
+    Draw_Layer   layers[Draw_Layer_Total];
+    Buffer      *memory;
+    u32          layer_index;
+    Vec2         solid_quad_uvs_min;
+    Vec2         solid_quad_uvs_max;
+    Draw_Texture blank_texture;
 } Draw_State_Common;
 
 static Draw_Layer *draw__get_active_layer(){
@@ -57,13 +63,14 @@ static Draw_Layer *draw__get_active_layer(){
     return result;
 }
 
-static void draw__push_command(u32 cmd_type, u32 cmd_size){
+static Draw_Cmd_Header *draw__push_command(u32 cmd_type, u32 cmd_size){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Header *header = (Draw_Cmd_Header *)buffer_push_bytes(&layer->buffer, cmd_size);
     header->type = cmd_type;
     header->size = cmd_size;
 
     layer->last_cmd = header;
+    return header;
 }
 
 Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
@@ -111,12 +118,14 @@ u32 draw_set_layer(u32 layer_index){
 }
 
 void draw_quad(float px, float py, float w, float h, u32 color){
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Draw_Layer *layer = draw__get_active_layer();
 
     // TODO: Use index buffer to use only 4 bytes
     size_t vertex_size = sizeof(Draw_Vertex)*6;
     if(!layer->last_cmd || layer->last_cmd->type != Draw_Cmd_Type_Quad){
-        draw__push_command(Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad));
+        Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad*)draw__push_command(Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad));
+        cmd->texture = s->blank_texture;
     }
     layer->last_cmd->size += vertex_size;
 
@@ -184,6 +193,7 @@ static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
 bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size){
     Buffer buffer = {memory, memory_size};
     bool error = false;
+    font->texture = Draw_Texture_Null;
 
     Font_Header *header = (Font_Header*)draw__read_bytes(&buffer, sizeof(Font_Header), &error);
     if(!header){
@@ -241,8 +251,27 @@ bool font_load_from_memory(Font* font, const char* font_name, void *memory, size
                 }
             } break;
 
-            case Font_Section_Kerning:
-            case Font_Section_Pixels:
+            case Font_Section_Kerning:{
+                u32 *count = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
+                if(count){
+                    font->kerning_pairs = (Font_Kerning*)draw__read_bytes(&payload, sizeof(Font_Kerning), &error);
+                    font->kerning_advance = (f32*)draw__read_bytes(&payload, sizeof(f32), &error);
+                }
+            } break;
+
+            case Font_Section_Pixels:{
+                u32 *w = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
+                u32 *h = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
+                if(w && h){
+                    font->pixels_width  = *w;
+                    font->pixels_height = *h;
+                    u32 total_pixels = font->pixels_width*font->pixels_height;
+                    font->pixels = (u32*)draw__read_bytes(&payload, sizeof(u32)*total_pixels, &error);
+
+                    font->texture = draw_create_texture(*w, *h, font->pixels, 0);
+                }
+            } break;
+
             case Font_Section_Blank_UVs:
                 continue;
         }
@@ -255,7 +284,7 @@ bool font_load_from_memory(Font* font, const char* font_name, void *memory, size
     return !error;
 }
 
-#ifdef __gnu_linux__
+#ifdef OS_Linux
 //------------------------------------------------------------------------------
 // Linux
 //------------------------------------------------------------------------------
@@ -303,6 +332,8 @@ static const char *draw__default_frag =
 "in vec2  f_uv;\n"
 "in vec4  f_color;\n"
 "out vec4 out_color;\n"
+"\n"
+"uniform sampler2D u_texture;\n" // TODO: How do we set the
 "\n"
 "void main(){\n"
 "	out_color = vec4(f_color.rgb*f_color.a, f_color.a);\n"
@@ -479,6 +510,14 @@ bool draw_begin(Buffer *memory){
         glBufferData(GL_UNIFORM_BUFFER, sizeof(Draw_Constants), NULL, GL_DYNAMIC_DRAW); // TODO: Is static draw correct? We re-upload every frame.
 
         s->default_shader = draw__compile_shader("default", draw__default_vert, draw__default_frag);
+
+        u32 tex_w = 4;
+        u32 tex_h = 4;
+        u32 tex_pixels[tex_w*tex_h];
+        for(u32 i = 0; i < tex_w*tex_h; i++){
+            tex_pixels[i] = 0xff000000;
+        }
+        s->common.blank_texture = draw_create_texture(tex_w, tex_h, &tex_pixels[0], 0);
     }
     return success;
 }
@@ -519,6 +558,8 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
 
     Buffer *cmd_buffer = &layer->buffer;
     size_t cmd_cursor = 0;
+    Draw_Texture texture = s->common.blank_texture;
+    glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
     if(s->common.hw_rendering){
         while(cmd_cursor < cmd_buffer->used){
             Draw_Cmd_Header *header = (Draw_Cmd_Header*)&cmd_buffer->data[cmd_cursor];
@@ -527,6 +568,13 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
                 default: assert(0);
 
                 case Draw_Cmd_Type_Quad:{
+                    Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad *)header;
+                    assert(cmd->texture != Draw_Texture_Null);
+                    if(texture != cmd->texture){
+                        texture = cmd->texture;
+                        glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
+                    }
+
                     size_t vertex_count = (header->size - sizeof(Draw_Cmd_Quad)) / sizeof(Draw_Vertex);
                     u32 total_vertex_size = vertex_count * sizeof(Draw_Vertex);
 
@@ -554,6 +602,36 @@ void draw_frame_end(){
         layer->buffer.used = 0;
         layer->last_cmd = NULL;
     }
+}
+
+Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
+    assert(width > 0 && height > 0);
+    GLint  internal_format = GL_RGBA8; // TODO: Do we care? Can we tell OpenGL we don't care?
+    GLenum source_format   = GL_RGBA;
+
+    GLuint handle = 0;
+    glGenTextures(1, &handle);
+    glBindTexture(GL_TEXTURE_2D, handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, source_format, GL_UNSIGNED_BYTE, pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    /*if(flags & Texture_Flag_Wrap){*/
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    /*}*/
+    /*else{*/
+        /*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);*/
+        /*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);*/
+    /*}*/
+
+    Draw_Texture result = handle;
+    return result;
+}
+
+void draw_destroy_texture(Draw_Texture *texture){
+    GLuint t = (GLuint)*texture;
+    glDeleteTextures(1, &t);
+    *texture = Draw_Texture_Null;
 }
 
 //------------------------------------------------------------------------------
