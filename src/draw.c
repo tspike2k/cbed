@@ -117,7 +117,7 @@ u32 draw_set_layer(u32 layer_index){
     return result;
 }
 
-void draw_quad(float px, float py, float w, float h, u32 color){
+void draw_quad(Rect r, u32 color){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Draw_Layer *layer = draw__get_active_layer();
 
@@ -129,11 +129,14 @@ void draw_quad(float px, float py, float w, float h, u32 color){
     }
     layer->last_cmd->size += vertex_size;
 
+    Vec2 r_min = rect_min(r);
+    Vec2 r_max = rect_max(r);
+
     Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
-    Vec3 p0 = {px + w, py}; // Top-right
-    Vec3 p1 = {px, py}; // Top-left
-    Vec3 p2 = {px, py - h}; // Bottom-left
-    Vec3 p3 = {px + w, py - h}; // Bottom-right
+    Vec3 p0 = {r_max.x, r_max.y}; // Top-right
+    Vec3 p1 = {r_min.x, r_max.y}; // Top-left
+    Vec3 p2 = {r_min.x, r_min.y}; // Bottom-left
+    Vec3 p3 = {r_max.x, r_min.y}; // Bottom-right
 
     v[0].pos = p0;
     v[0].color = color;

@@ -4,14 +4,14 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
+#include <stdbool.h>
 #include "common.c"
 #include "os.c"
 #include "display.h"
 #include "opengl.c"
-#include "draw.c"
-#include "files.c"
 #include "math.c"
-#include <stdbool.h>
+#include "files.c"
+#include "draw.c"
 
 u8 g_memory[4*1024*1024];
 
@@ -47,11 +47,13 @@ int main(){
             }
         }
 
+        Rect uvs = rect_from_min_wh((Vec2){0, 0}, 1, 1);
+
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
-        draw_quad(-100, -100, 200, 200, 0x000000ff);
-        draw_quad(0, 0, 200, 200, 0xff0000ff);
-        draw_quad(0, 0, 100, 100, 0xffff00ff);
+        draw_quad(rect_from_min_wh((Vec2){-100, -100}, 200, 200), 0x000000ff);
+        draw_quad(rect_from_min_wh((Vec2){0, 0}, 200, 200), 0xff0000ff);
+        draw_quad(rect_from_min_wh((Vec2){0, 0}, 100, 100), 0xffff00ff);
 
         draw_frame_end();
 

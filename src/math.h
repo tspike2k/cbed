@@ -41,6 +41,10 @@ typedef struct{
     Vec2 extents;
 } Rect;
 
+Rect rect_from_min_wh(Vec2 p, float w, float h);
+Vec2 rect_min(Rect r);
+Vec2 rect_max(Rect r);
+
 typedef struct{
     float m[4][4];
 } Mat4;

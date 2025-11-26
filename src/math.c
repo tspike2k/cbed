@@ -6,6 +6,23 @@
 
 #include "math.h"
 
+Rect rect_from_min_wh(Vec2 min_p, float w, float h){
+    Vec2 extents = {w*0.5f, h*0.5f};
+    Vec2 center  = {min_p.x + extents.x, min_p.y - extents.y};
+    Rect result  = {center, extents};
+    return result;
+}
+
+Vec2 rect_min(Rect r){
+    Vec2 result = {r.center.x - r.extents.x, r.center.y - r.extents.y};
+    return result;
+}
+
+Vec2 rect_max(Rect r){
+    Vec2 result = {r.center.x + r.extents.x, r.center.y + r.extents.y};
+    return result;
+}
+
 Mat4 Mat4_Identity = {{
     {1, 0, 0, 0},
     {0, 1, 0, 0},
