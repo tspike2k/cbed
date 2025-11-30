@@ -37,7 +37,7 @@ void draw_end();
 void draw_frame_begin();
 void draw_frame_end();
 void draw_quad(Rect r, u32 color);
-void draw_quad_textured(Vec2 p, float w, float h, uint32_t color, Draw_Texture texture);
+void draw_quad_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
 void draw_init_layer(u32 layer_id, size_t buffer_size);
 
 Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
@@ -121,7 +121,7 @@ typedef struct {
 } Font_Section;
 
 bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size);
-Font_Glyph* get_glyph(Font* font, uint32_t codepoint);
+Font_Glyph* font_get_glyph(Font* font, uint32_t codepoint);
 float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint);
 
 #endif // CEABED_DRAW_H

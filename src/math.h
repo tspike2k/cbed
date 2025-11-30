@@ -15,6 +15,7 @@
 extern double pow(double x, double y);
 extern double ceil(double x);
 extern double sqrt(double x);
+extern double floor(double x);
 
 #define PI  3.141592653589793f
 #define TAU (PI*2.0f)

@@ -117,22 +117,12 @@ u32 draw_set_layer(u32 layer_index){
     return result;
 }
 
-void draw_quad(Rect r, u32 color){
-    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
-    Draw_Layer *layer = draw__get_active_layer();
+static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
+    Vec2 r_min = rect_min(bounds);
+    Vec2 r_max = rect_max(bounds);
+    Vec2 uv_min = rect_min(uvs);
+    Vec2 uv_max = rect_max(uvs);
 
-    // TODO: Use index buffer to use only 4 bytes
-    size_t vertex_size = sizeof(Draw_Vertex)*6;
-    if(!layer->last_cmd || layer->last_cmd->type != Draw_Cmd_Type_Quad){
-        Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad*)draw__push_command(Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad));
-        cmd->texture = s->blank_texture;
-    }
-    layer->last_cmd->size += vertex_size;
-
-    Vec2 r_min = rect_min(r);
-    Vec2 r_max = rect_max(r);
-
-    Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
     Vec3 p0 = {r_max.x, r_max.y}; // Top-right
     Vec3 p1 = {r_min.x, r_max.y}; // Top-left
     Vec3 p2 = {r_min.x, r_min.y}; // Bottom-left
@@ -140,24 +130,144 @@ void draw_quad(Rect r, u32 color){
 
     v[0].pos = p0;
     v[0].color = color;
+    v[0].uv   = (Vec2){uv_max.x, uv_min.y};
     v[1].pos = p1;
     v[1].color = color;
+    v[1].uv   = (Vec2){uv_min.x, uv_min.y};
     v[2].pos = p2;
     v[2].color = color;
+    v[2].uv   = (Vec2){uv_min.x, uv_max.y};
 
     v[3].pos = p0;
     v[3].color = color;
+    v[3].uv   = (Vec2){uv_max.x, uv_min.y};
     v[4].pos = p2;
     v[4].color = color;
+    v[4].uv   = (Vec2){uv_min.x, uv_max.y};
     v[5].pos = p3;
     v[5].color = color;
+    v[5].uv   = (Vec2){uv_max.x, uv_max.y};
+}
+
+static Draw_Cmd_Quad *draw__get_or_add_draw_quad_cmd(Draw_Layer* layer, Draw_Texture texture){
+    Draw_Cmd_Quad *result = (Draw_Cmd_Quad *)layer->last_cmd;
+    if(!(result && result->header.type == Draw_Cmd_Type_Quad && result->texture == texture)){
+        result = (Draw_Cmd_Quad*)draw__push_command(Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad));
+        result->texture = texture;
+    }
+    assert(result->header.type == Draw_Cmd_Type_Quad);
+    return result;
+}
+
+void draw_quad_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
+    Draw_Layer *layer = draw__get_active_layer();
+
+    // TODO: Use index buffer so we only use 4 vertices
+    Draw_Cmd_Quad *cmd = draw__get_or_add_draw_quad_cmd(layer, texture);
+
+    size_t vertex_size = sizeof(Draw_Vertex)*6;
+    cmd->header.size += vertex_size;
+    Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
+    draw__set_quad(v, r, color, uvs);
+}
+
+void draw_quad(Rect r, u32 color){
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
+    Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});
+    draw_quad_textured(r, color, s->blank_texture, uvs);
+}
+
+#if 0
+void render_text(Font* font, String text, Vec2 baseline, Vec4 color){
+    if(font.glyphs.length == 0) return;
+
+    push_frame(g_allocator.scratch);
+    scope(exit) pop_frame(g_allocator.scratch);
+
+    auto v_buffer = alloc_array!Vertex(g_allocator.scratch, text.length*4);
+    uint v_buffer_used = 0;
+
+    Font_Metrics *metrics = &font.metrics;
+
+    auto pen = baseline;
+    uint prev_codepoint = 0;
+    foreach(c; text){
+        // TODO: Due to kerning, we probably need "space" to be a valid glyph, just not one we render.
+        if(c == ' '){
+            pen.x += metrics.space_width;
+        }
+        else{
+            // When to apply kerning based on sample code from here:
+            // https://freetype.org/freetype2/docs/tutorial/step2.html#:~:text=c.%20Kerning
+            auto glyph   = get_glyph(font, c);
+            auto kerning = get_codepoint_kerning_advance(font, prev_codepoint, glyph.codepoint);
+            pen.x += kerning;
+
+            auto v = v_buffer[v_buffer_used .. v_buffer_used+4];
+            v_buffer_used += 4;
+
+            auto min_p = pen + glyph.offset;
+            auto bounds = rect_from_min_max(min_p, min_p + Vec2(glyph.width, glyph.height));
+            auto uvs = rect_from_min_max(glyph.uv_min, glyph.uv_max);
+            set_quad(v, bounds, uvs, color);
+
+            pen.x += cast(float)glyph.advance;
+            prev_codepoint = c;
+        }
+    }
+
+    set_texture(font.texture_id);
+    draw_quads(v_buffer[0 .. v_buffer_used]);
+}
+#endif
+
+void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
+    if(font->glyphs_count == 0) return;
+
+    Draw_Layer *layer = draw__get_active_layer();
+
+    Draw_Cmd_Quad *cmd = draw__get_or_add_draw_quad_cmd(layer, font->texture);
+    /*Draw_Cmd_Quad *cmd = draw__get_or_add_draw_quad_cmd(layer, s->blank_texture);*/
+    /*color = 0xff0000ff;*/
+
+    u32 vertex_per_quad = 6;
+
+    size_t vertex_size = text_len*sizeof(Draw_Vertex)*vertex_per_quad;
+    cmd->header.size += vertex_size;
+    Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
+
+    // TODO: Some of these characters won't be rendered (such as space).
+    // Shouldn't we subtract them from the layer's vertex buffer and the
+    // command's total size?
+
+    Vec2 pen = {floor(baseline.x), floor(baseline.y)};
+    u32 prev_codepoint = 0;
+    for(size_t i = 0; i < text_len; i++){
+        char c = text[i];
+
+        // When to apply kerning based on sample code from here:
+        // https://freetype.org/freetype2/docs/tutorial/step2.html#:~:text=c.%20Kerning
+        Font_Glyph *glyph   = font_get_glyph(font, c);
+        float kerning = font_get_kerning_advance(font, prev_codepoint, c);
+        pen.x += kerning;
+
+        Vec2 min_p = {pen.x + glyph->offset.x, pen.y + glyph->offset.y};
+        Rect bounds = rect_from_min_wh(min_p, glyph->width, glyph->height);
+        Rect uvs = rect_from_min_max(glyph->uv_min, glyph->uv_max);
+
+        Draw_Vertex *vertex = &v[i*vertex_per_quad];
+        draw__set_quad(vertex, bounds, color, uvs);
+
+        pen.x += (float)glyph->advance;
+        prev_codepoint = c;
+    }
 }
 
 //
 // Font
 //
 
-Font_Glyph* get_glyph(Font* font, u32 codepoint){
+Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
     Font_Glyph* result = &font->null_glyph;
     for(u32 i = 0; i < font->glyphs_count; i++){
         if(font->glyph_codepoints[i] == codepoint){
@@ -339,7 +449,8 @@ static const char *draw__default_frag =
 "uniform sampler2D u_texture;\n" // TODO: How do we set the
 "\n"
 "void main(){\n"
-"	out_color = vec4(f_color.rgb*f_color.a, f_color.a);\n"
+"    vec4 tex_color = texture(u_texture, f_uv);\n"
+"    out_color = tex_color*vec4(f_color.rgb*f_color.a, f_color.a);\n"
 "}\n";
 
 enum{
@@ -518,7 +629,7 @@ bool draw_begin(Buffer *memory){
         u32 tex_h = 4;
         u32 tex_pixels[tex_w*tex_h];
         for(u32 i = 0; i < tex_w*tex_h; i++){
-            tex_pixels[i] = 0xff000000;
+            tex_pixels[i] = 0xffffffff;
         }
         s->common.blank_texture = draw_create_texture(tex_w, tex_h, &tex_pixels[0], 0);
     }

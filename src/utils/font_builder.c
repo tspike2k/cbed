@@ -181,6 +181,10 @@ static bool rasterize_glyph_and_copy_metrics(Font_Builder *builder, u32 codepoin
     if(codepoint != ' '){
         FT_BitmapGlyph bitmap_glyph = make_bitmap_glyph(face, stroker, codepoint, font_entry->stroke);
 
+        dest->pixels_width  = bitmap_glyph->bitmap.width;
+        dest->pixels_height = bitmap_glyph->bitmap.rows;
+        dest->pixels        = (u32*)buffer_push_bytes(&builder->memory, sizeof(u32)*dest->pixels_width*dest->pixels_height);
+
         // Copy glyph metrics
         Font_Glyph *glyph = &dest->glyph;
         glyph->advance    = ((u32)face->glyph->advance.x) >> 6;
@@ -198,10 +202,6 @@ static bool rasterize_glyph_and_copy_metrics(Font_Builder *builder, u32 codepoin
         glyph->offset.x  = bitmap_glyph->left;
         // NOTE: We must cast before negation as the metrics are unsigned integers
         glyph->offset.y  = -((float)(bitmap_glyph->bitmap.rows) - (float)(bitmap_glyph->top)) + (float)font_entry->stroke;
-
-        dest->pixels_width  = bitmap_glyph->bitmap.width;
-        dest->pixels_height = bitmap_glyph->bitmap.rows;
-        dest->pixels        = (u32*)buffer_push_bytes(&builder->memory, sizeof(u32)*dest->pixels_width*dest->pixels_height);
 
         u32 target_color = font_entry->stroke == 0 ? builder->fill_color : builder->stroke_color;
         blit_to_dest(bitmap_glyph, dest, target_color, 0, 0);
@@ -229,7 +229,7 @@ static bool rasterize_glyph_and_copy_metrics(Font_Builder *builder, u32 codepoin
 }
 
 static void add_codepoint(Font_Builder* builder, u32 codepoint){
-    auto glyph = buffer_push_type(Rasterized_Glyph, &builder->memory);
+    Rasterized_Glyph *glyph = buffer_push_type(Rasterized_Glyph, &builder->memory);
     if(rasterize_glyph_and_copy_metrics(builder, codepoint, glyph)){
         atlas_packer_add(&builder->atlas, glyph->pixels_width, glyph->pixels_height, glyph);
     }
@@ -301,6 +301,57 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
     end_section(dest, section);
 
     //
+    // Pixels
+    //
+    section = begin_section(dest, Font_Section_Pixels);
+
+    u32 canvas_width   = atlas->canvas_width;
+    u32 canvas_height  = atlas->canvas_height;
+
+    buffer_write_type(dest, &canvas_width);
+    buffer_write_type(dest, &canvas_height);
+    u32 *canvas_pixels = (u32*)buffer_push_bytes(dest, sizeof(u32)*canvas_width*canvas_height);
+
+    // Copy all rasterized glyphs into the sprite atlas.
+    Atlas_Node *node = atlas->items;
+    while(node){
+        Rasterized_Glyph *glyph = (Rasterized_Glyph*)node->source;
+        Font_Glyph *glyph_info  = &glyph->glyph;
+
+        u32 source_width   = glyph->pixels_width;
+        u32 source_height  = glyph->pixels_height;
+        u32 *source_pixels = glyph->pixels;
+
+        u32 dest_x = node->x;
+        u32 dest_y = node->y;
+        u32 w = node->width;
+        u32 h = node->height;
+
+        for(u32 y = 0; y < h; y++){
+            for(u32 x = 0; x < w; x++){
+                u32 canvas_i = dest_x + x + (dest_y+y) * canvas_width;
+                assert(canvas_i < canvas_width*canvas_height);
+                u32 source_i = x + y*w;
+                assert(source_i < source_width*source_height);
+                canvas_pixels[canvas_i] = source_pixels[source_i];
+            }
+        }
+
+        glyph_info->uv_min = (Vec2){
+            ((float)dest_x) / ((float)canvas_width),
+            ((float)dest_y) / ((float)canvas_height)
+        };
+
+        glyph_info->uv_max = (Vec2){
+            ((float)(dest_x + source_width))  / ((float)canvas_width),
+            ((float)(dest_y + source_height)) / ((float)canvas_height)
+        };
+
+        node = node->next;
+    }
+    end_section(dest, section);
+
+    //
     // Glyphs
     //
     section = begin_section(dest, Font_Section_Glyphs);
@@ -313,7 +364,7 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
     u32 *glyph_codepoints = buffer_push_array(u32, dest, glyphs_count);
     Font_Glyph *glyhs     = buffer_push_array(Font_Glyph, dest, glyphs_count);
 
-    Atlas_Node *node = atlas->items;
+    node = atlas->items;
     u32 glyph_index = 0;
     while(node){
         assert(glyph_index < glyphs_count);
@@ -365,57 +416,6 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
         node_a = node_a->next;
     }
     assert(kerning_index == kerning_pairs_count);
-    end_section(dest, section);
-
-    //
-    // Pixels
-    //
-    section = begin_section(dest, Font_Section_Pixels);
-
-    u32 canvas_width   = atlas->canvas_width;
-    u32 canvas_height  = atlas->canvas_height;
-
-    buffer_write_type(dest, &canvas_width);
-    buffer_write_type(dest, &canvas_height);
-    u32 *canvas_pixels = (u32*)buffer_push_bytes(dest, sizeof(u32)*canvas_width*canvas_height);
-
-    // Copy all rasterized glyphs into the sprite atlas.
-    node = atlas->items;
-    while(node){
-        Rasterized_Glyph *glyph = (Rasterized_Glyph*)node->source;
-        Font_Glyph *glyph_info  = &glyph->glyph;
-
-        u32 source_width   = glyph->pixels_width;
-        u32 source_height  = glyph->pixels_height;
-        u32 *source_pixels = glyph->pixels;
-
-        u32 dest_x = node->x;
-        u32 dest_y = node->y;
-        u32 w = node->width;
-        u32 h = node->height;
-
-        for(u32 y = 0; y < h; y++){
-            for(u32 x = 0; x < w; x++){
-                u32 canvas_i = dest_x + x + (dest_y+y) * canvas_width;
-                assert(canvas_i < canvas_width*canvas_height);
-                u32 source_i = x + y*w;
-                assert(source_i < source_width*source_height);
-                canvas_pixels[canvas_i] = source_pixels[source_i];
-            }
-        }
-
-        glyph_info->uv_min = (Vec2){
-            ((float)dest_x) / ((float)canvas_width),
-            ((float)dest_y) / ((float)canvas_height)
-        };
-
-        glyph_info->uv_max = (Vec2){
-            ((float)(dest_x + source_width))  / ((float)canvas_width),
-            ((float)(dest_y + source_height)) / ((float)canvas_height)
-        };
-
-        node = node->next;
-    }
     end_section(dest, section);
 
     file_write_from_memory(font_entry->dest_file_name, &dest->data[dest_start], dest->used - dest_start);

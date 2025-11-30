@@ -47,13 +47,18 @@ int main(){
             }
         }
 
-        Rect uvs = rect_from_min_wh((Vec2){0, 0}, 1, 1);
+        /*Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});*/
 
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
-        draw_quad(rect_from_min_wh((Vec2){-100, -100}, 200, 200), 0x000000ff);
+#if 1
+        draw_quad(rect_from_min_wh((Vec2){-100, -100}, 200, 200), 0x00ff00ff);
         draw_quad(rect_from_min_wh((Vec2){0, 0}, 200, 200), 0xff0000ff);
         draw_quad(rect_from_min_wh((Vec2){0, 0}, 100, 100), 0xffff00ff);
+#endif
+
+        const char *msg = "Hello, world!";
+        draw_text((Vec2){0, 0}, 0xff00ffff, &test_font, msg, strlen(msg));
 
         draw_frame_end();
 

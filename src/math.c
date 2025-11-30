@@ -8,8 +8,15 @@
 
 Rect rect_from_min_wh(Vec2 min_p, float w, float h){
     Vec2 extents = {w*0.5f, h*0.5f};
-    Vec2 center  = {min_p.x + extents.x, min_p.y - extents.y};
+    Vec2 center  = {min_p.x + extents.x, min_p.y + extents.y};
     Rect result  = {center, extents};
+    return result;
+}
+
+Rect rect_from_min_max(Vec2 min_p, Vec2 max_p){
+    Vec2 extents = {(max_p.x - min_p.x)*0.5f, (max_p.y - min_p.y)*0.5f};
+    Vec2 center  = {min_p.x + extents.x, min_p.y + extents.y};
+    Rect result = {center, extents};
     return result;
 }
 
