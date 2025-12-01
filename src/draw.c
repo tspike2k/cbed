@@ -177,50 +177,6 @@ void draw_quad(Rect r, u32 color){
     draw_quad_textured(r, color, s->blank_texture, uvs);
 }
 
-#if 0
-void render_text(Font* font, String text, Vec2 baseline, Vec4 color){
-    if(font.glyphs.length == 0) return;
-
-    push_frame(g_allocator.scratch);
-    scope(exit) pop_frame(g_allocator.scratch);
-
-    auto v_buffer = alloc_array!Vertex(g_allocator.scratch, text.length*4);
-    uint v_buffer_used = 0;
-
-    Font_Metrics *metrics = &font.metrics;
-
-    auto pen = baseline;
-    uint prev_codepoint = 0;
-    foreach(c; text){
-        // TODO: Due to kerning, we probably need "space" to be a valid glyph, just not one we render.
-        if(c == ' '){
-            pen.x += metrics.space_width;
-        }
-        else{
-            // When to apply kerning based on sample code from here:
-            // https://freetype.org/freetype2/docs/tutorial/step2.html#:~:text=c.%20Kerning
-            auto glyph   = get_glyph(font, c);
-            auto kerning = get_codepoint_kerning_advance(font, prev_codepoint, glyph.codepoint);
-            pen.x += kerning;
-
-            auto v = v_buffer[v_buffer_used .. v_buffer_used+4];
-            v_buffer_used += 4;
-
-            auto min_p = pen + glyph.offset;
-            auto bounds = rect_from_min_max(min_p, min_p + Vec2(glyph.width, glyph.height));
-            auto uvs = rect_from_min_max(glyph.uv_min, glyph.uv_max);
-            set_quad(v, bounds, uvs, color);
-
-            pen.x += cast(float)glyph.advance;
-            prev_codepoint = c;
-        }
-    }
-
-    set_texture(font.texture_id);
-    draw_quads(v_buffer[0 .. v_buffer_used]);
-}
-#endif
-
 void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
     if(font->glyphs_count == 0) return;
 
