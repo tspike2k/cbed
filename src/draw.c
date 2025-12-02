@@ -18,21 +18,28 @@
 typedef struct Draw_State Draw_State;
 static Draw_State draw__state;
 
+// TODO: Use index buffer so we only use 4 vertices
+#define Draw__Vertex_Per_Quad 6
+
 enum{
     Draw_Cmd_Type_None,
     Draw_Cmd_Type_Quad,
 };
 
-// NOTE: The size field of the command header includes the size of the command header, the
-// rest of the command data, and any additional data associated with it.
-typedef struct{
-    u32 type;
-    u32 size;
-} Draw_Cmd_Header;
+typedef struct Draw_Cmd Draw_Cmd;
+
+#define Draw_Cmd_Fields \
+    Draw_Cmd *next;     \
+    u32       type;
+
+struct Draw_Cmd{
+    Draw_Cmd_Fields;
+};
 
 typedef struct{
-    Draw_Cmd_Header header;
-    Draw_Texture    texture;
+    Draw_Cmd_Fields;
+    Draw_Texture texture;
+    u32          vertex_count;
 } Draw_Cmd_Quad;
 
 typedef struct {
@@ -43,8 +50,8 @@ typedef struct {
 } Draw_Vertex;
 
 typedef struct {
-    Buffer           buffer;
-    Draw_Cmd_Header *last_cmd;
+    Draw_Cmd *cmd_first;
+    Draw_Cmd *cmd_last;
 } Draw_Layer;
 
 typedef struct{
@@ -63,14 +70,18 @@ static Draw_Layer *draw__get_active_layer(){
     return result;
 }
 
-static Draw_Cmd_Header *draw__push_command(u32 cmd_type, u32 cmd_size){
-    Draw_Layer *layer = draw__get_active_layer();
-    Draw_Cmd_Header *header = (Draw_Cmd_Header *)buffer_push_bytes(&layer->buffer, cmd_size);
-    header->type = cmd_type;
-    header->size = cmd_size;
+static Draw_Cmd *draw__push_command(Draw_Layer *layer, u32 cmd_type, u32 cmd_size){
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
+    Draw_Cmd *cmd = (Draw_Cmd *)buffer_push_bytes(s->memory, cmd_size);
 
-    layer->last_cmd = header;
-    return header;
+    cmd->type = cmd_type;
+    if(!layer->cmd_first)
+        layer->cmd_first = cmd;
+
+    if(layer->cmd_last)
+        layer->cmd_last->next = cmd;
+    layer->cmd_last = cmd;
+    return cmd;
 }
 
 Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
@@ -99,17 +110,6 @@ Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
     return result;
 }
 
-void draw_init_layer(u32 layer_id, size_t buffer_size){
-    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
-
-    assert(layer_id < Draw_Layer_Total);
-    Draw_Layer *layer = &s->layers[layer_id];
-    Buffer *memory = s->memory;
-    assert(buffer_size <= memory->size - memory->used);
-    layer->buffer = (Buffer){&memory->data[memory->used], buffer_size};
-    memory->used += buffer_size;
-}
-
 u32 draw_set_layer(u32 layer_index){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     u32 result = s->layer_index;
@@ -128,6 +128,7 @@ static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
     Vec3 p2 = {r_min.x, r_min.y}; // Bottom-left
     Vec3 p3 = {r_max.x, r_min.y}; // Bottom-right
 
+    assert(Draw__Vertex_Per_Quad == 6);
     v[0].pos = p0;
     v[0].color = color;
     v[0].uv   = (Vec2){uv_max.x, uv_min.y};
@@ -149,25 +150,17 @@ static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
     v[5].uv   = (Vec2){uv_max.x, uv_max.y};
 }
 
-static Draw_Cmd_Quad *draw__get_or_add_draw_quad_cmd(Draw_Layer* layer, Draw_Texture texture){
-    Draw_Cmd_Quad *result = (Draw_Cmd_Quad *)layer->last_cmd;
-    if(!(result && result->header.type == Draw_Cmd_Type_Quad && result->texture == texture)){
-        result = (Draw_Cmd_Quad*)draw__push_command(Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad));
-        result->texture = texture;
-    }
-    assert(result->header.type == Draw_Cmd_Type_Quad);
+static Draw_Vertex *draw__add_quad_cmd(Draw_Layer* layer, Draw_Texture texture, size_t vertex_count){
+    Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad *)draw__push_command(layer, Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad) + sizeof(Draw_Vertex)*vertex_count);
+    cmd->texture = texture;
+    cmd->vertex_count = vertex_count;
+    Draw_Vertex *result = (Draw_Vertex*)(cmd+1);
     return result;
 }
 
 void draw_quad_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
     Draw_Layer *layer = draw__get_active_layer();
-
-    // TODO: Use index buffer so we only use 4 vertices
-    Draw_Cmd_Quad *cmd = draw__get_or_add_draw_quad_cmd(layer, texture);
-
-    size_t vertex_size = sizeof(Draw_Vertex)*6;
-    cmd->header.size += vertex_size;
-    Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
+    Draw_Vertex *v = draw__add_quad_cmd(layer, texture, Draw__Vertex_Per_Quad);
     draw__set_quad(v, r, color, uvs);
 }
 
@@ -180,21 +173,11 @@ void draw_quad(Rect r, u32 color){
 void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
     if(font->glyphs_count == 0) return;
 
-    Draw_Layer *layer = draw__get_active_layer();
-
-    Draw_Cmd_Quad *cmd = draw__get_or_add_draw_quad_cmd(layer, font->texture);
-    /*Draw_Cmd_Quad *cmd = draw__get_or_add_draw_quad_cmd(layer, s->blank_texture);*/
-    /*color = 0xff0000ff;*/
-
-    u32 vertex_per_quad = 6;
-
-    size_t vertex_size = text_len*sizeof(Draw_Vertex)*vertex_per_quad;
-    cmd->header.size += vertex_size;
-    Draw_Vertex *v = buffer_push_bytes(&layer->buffer, vertex_size);
-
     // TODO: Some of these characters won't be rendered (such as space).
     // Shouldn't we subtract them from the layer's vertex buffer and the
     // command's total size?
+    Draw_Layer *layer = draw__get_active_layer();
+    Draw_Vertex *v = draw__add_quad_cmd(layer, font->texture, text_len*Draw__Vertex_Per_Quad);
 
     Vec2 pen = {floor(baseline.x), floor(baseline.y)};
     u32 prev_codepoint = 0;
@@ -211,7 +194,7 @@ void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t te
         Rect bounds = rect_from_min_wh(min_p, glyph->width, glyph->height);
         Rect uvs = rect_from_min_max(glyph->uv_min, glyph->uv_max);
 
-        Draw_Vertex *vertex = &v[i*vertex_per_quad];
+        Draw_Vertex *vertex = &v[i*Draw__Vertex_Per_Quad];
         draw__set_quad(vertex, bounds, color, uvs);
 
         pen.x += (float)glyph->advance;
@@ -402,7 +385,7 @@ static const char *draw__default_frag =
 "in vec4  f_color;\n"
 "out vec4 out_color;\n"
 "\n"
-"uniform sampler2D u_texture;\n" // TODO: How do we set the
+"uniform sampler2D u_texture;\n" // TODO: How do we set the texture index for the uniform? Is it one by default?
 "\n"
 "void main(){\n"
 "    vec4 tex_color = texture(u_texture, f_uv);\n"
@@ -623,43 +606,34 @@ void draw_frame_begin(){
 }
 
 static void draw__layer(Draw_State *s, Draw_Layer *layer){
-    if(layer->buffer.used < sizeof(Draw_Cmd_Header)) return;
-    assert(layer->buffer.data);
-
-    Buffer *cmd_buffer = &layer->buffer;
-    size_t cmd_cursor = 0;
-    Draw_Texture texture = s->common.blank_texture;
-    glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
+    Draw_Cmd* cmd_base = layer->cmd_first;
     if(s->common.hw_rendering){
-        while(cmd_cursor < cmd_buffer->used){
-            Draw_Cmd_Header *header = (Draw_Cmd_Header*)&cmd_buffer->data[cmd_cursor];
-
-            switch(header->type){
+        Draw_Texture texture = s->common.blank_texture;
+        glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
+        while(cmd_base){
+            switch(cmd_base->type){
                 default: assert(0);
 
                 case Draw_Cmd_Type_Quad:{
-                    Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad *)header;
+                    Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad *)cmd_base;
                     assert(cmd->texture != Draw_Texture_Null);
                     if(texture != cmd->texture){
                         texture = cmd->texture;
                         glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
                     }
 
-                    size_t vertex_count = (header->size - sizeof(Draw_Cmd_Quad)) / sizeof(Draw_Vertex);
-                    u32 total_vertex_size = vertex_count * sizeof(Draw_Vertex);
-
-                    size_t cmd_payload_pos = cmd_cursor + sizeof(Draw_Cmd_Quad);
-                    void *v = &cmd_buffer->data[cmd_payload_pos];
+                    u32 total_vertex_size = cmd->vertex_count * sizeof(Draw_Vertex);
+                    Draw_Vertex *v = (Draw_Vertex *)(cmd+1);
 
                     glUseProgram(s->default_shader);
                     glBindBuffer(GL_ARRAY_BUFFER, s->quad_vbo);
                     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(total_vertex_size), v, GL_DYNAMIC_DRAW);
-                    glDrawArrays(GL_TRIANGLES, 0, vertex_count);
+                    glDrawArrays(GL_TRIANGLES, 0, cmd->vertex_count);
                     /*glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s->quad_index_buffer);*/
                     /*glDrawElements(GL_TRIANGLES, (GLsizei)(vertex_count * Draw__Indeces_Per_Quad), GL_UNSIGNED_INT, (GLvoid*)0);*/
                 } break;
             }
-            cmd_cursor += header->size;
+            cmd_base = cmd_base->next;
         }
     }
 }
@@ -669,8 +643,8 @@ void draw_frame_end(){
     for(u32 layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
         Draw_Layer *layer = &s->common.layers[layer_index];
         draw__layer(s, layer);
-        layer->buffer.used = 0;
-        layer->last_cmd = NULL;
+        layer->cmd_last  = NULL;
+        layer->cmd_first = NULL;
     }
 }
 

@@ -29,7 +29,6 @@ int main(){
         fmt_msg("Error loading font.\n");
     }
 
-    draw_init_layer(Draw_Layer_World, 4096);
     while(running){
         Event event;
         while(display_next_event(&event)){
