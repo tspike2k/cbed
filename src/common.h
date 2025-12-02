@@ -111,6 +111,7 @@ typedef struct{
 typedef void (*Fmt_Put_Func)(const char *text, size_t text_count, void *user_data);
 
 #define Array_Len(a) (sizeof((a)) / sizeof((a)[0]))
+#define Offset_Of(type, member) (size_t)&(((type*)0)->member)
 
 // NOTE: If zero arguments are passed as varargs then fmt_args will still have a length of 1.
 // This shouldn't cause much of an issue as that bug can be pretty easily found, but it is a

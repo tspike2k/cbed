@@ -50,6 +50,7 @@ typedef struct {
 } Draw_Vertex;
 
 typedef struct {
+    Camera   *camera;
     Draw_Cmd *cmd_first;
     Draw_Cmd *cmd_last;
 } Draw_Layer;
@@ -62,6 +63,7 @@ typedef struct{
     Vec2         solid_quad_uvs_min;
     Vec2         solid_quad_uvs_max;
     Draw_Texture blank_texture;
+    Camera       default_camera;
 } Draw_State_Common;
 
 static Draw_Layer *draw__get_active_layer(){
@@ -84,7 +86,7 @@ static Draw_Cmd *draw__push_command(Draw_Layer *layer, u32 cmd_type, u32 cmd_siz
     return cmd;
 }
 
-Draw_XForm draw_orthographic_projection(Rect bounds, float n, float f){
+Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     // Orthographic adapted from here:
     // https://songho.ca/opengl/gl_projectionmatrix.html#ortho
     // https://en.wikipedia.org/wiki/Orthographic_projection
@@ -110,7 +112,7 @@ Draw_XForm draw_orthographic_projection(Rect bounds, float n, float f){
     return result;
 }
 
-Mat4 draw_make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
+Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     Vec3 look_dir = v3_normalize(v3_sub(look_pos, camera_pos));
     Vec3 up_dir   = up_pos;
 
@@ -126,6 +128,54 @@ Mat4 draw_make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
 
     camera_pos = v3_muls(camera_pos, -1);
     result = mat4_mul(mat4_transpose(result), mat4_translate(camera_pos));
+    return result;
+}
+
+Mat4 invert_view_matrix(Mat4 view){
+    // IMPORTANT: Inverting a view matrix this way only works if no non-uniform rotation has been
+    // applied.
+
+    // Transpose 3x3 rotation portion of the view to invert it.
+    Mat4 rot = (Mat4){{
+        {view.m[0][0], view.m[1][0], view.m[2][0], 0},
+        {view.m[0][1], view.m[1][1], view.m[2][1], 0},
+        {view.m[0][2], view.m[1][2], view.m[2][2], 0},
+        {0,            0,            0,            1},
+    }};
+
+    // Negate the translation portion of the view to invert it.
+    Vec3 p = {
+        view.m[0][3],
+        view.m[1][3],
+        view.m[2][3]
+    };
+    Mat4 result = mat4_mul(rot, mat4_translate(p));
+    return result;
+}
+
+Rect calc_scaling_viewport(float res_x, float res_y, float window_w, float window_h){
+    // TODO(tspike) Investigate why there's a vertical stripe of non-rendered pixels on the right side of the screen when
+    // in fullcreen mode in X11 (on my laptop). Floating point precision issues? Do we need to clamp?
+
+    // Resolution independent code thanks to this post:
+    // http://www.david-amador.com/2013/04/opengl-2d-independent-resolution-rendering/
+
+    float aspect_ratio = res_x/res_y;
+
+    float target_w = window_w;
+    float target_h = target_w / aspect_ratio;
+
+    if(target_h > window_h){
+        target_w = target_h*aspect_ratio;
+        target_h = window_h;
+    }
+
+    Vec2 min_p = {
+        (window_w - target_w)*0.5f,
+        (window_h - target_h)*0.5f
+    };
+
+    Rect result = rect_from_min_wh(min_p, target_w, target_h);
     return result;
 }
 
@@ -365,16 +415,20 @@ bool font_load_from_memory(Font* font, const char* font_name, void *memory, size
 #define Draw__Constants_Uniform_Binding 0
 
 typedef struct{
-    Mat4     mat_camera;
-    Vec3     camera_pos;
-    float    time;
+    Mat4  mat_camera;
+    Mat4  mat_model;
+    Mat4  mat_light;
+    Vec3  camera_pos;
+    float time;
 } Draw_Constants;
 
 static const char *draw__default_vert =
 "#version 330\n"
 "layout(std140) uniform Constants{\n"
 "    mat4  mat_camera;\n"
-"    vec3  camera_pos; // TODO: Is there some way to do lighting without this?\n"
+"    mat4  mat_model;\n"
+"    mat4  mat_light;\n"
+"    vec3  camera_pos;\n" // TODO: Is there some way to do lighting without this?
 "    float time;\n"
 "};\n"
 "in vec3 v_pos;\n"
@@ -590,6 +644,11 @@ bool draw_begin(Buffer *memory){
             tex_pixels[i] = 0xffffffff;
         }
         s->common.blank_texture = draw_create_texture(tex_w, tex_h, &tex_pixels[0], 0);
+
+        Draw_Layer *layers = &s->common.layers[0];
+        for(u32 i = 0; i < Draw_Layer_Total; i++){
+            layers[i].camera = &s->common.default_camera;
+        }
     }
     return success;
 }
@@ -607,17 +666,18 @@ void draw_frame_begin(){
         glClear(GL_COLOR_BUFFER_BIT);
 
         Draw_Constants constants = {};
-        Rect bounds;
 
-        float w = info.window_width;
-        float h = info.window_height;
-        float aspect_ratio = w / h;
-        bounds.extents = (Vec2){0.5f*h*aspect_ratio, 0.5f*h};
-        bounds.center = (Vec2){0, 0};
-        Draw_XForm mat_proj = draw_orthographic_projection(bounds, -100, 100);
+        // Set the default camera. This is an orthographic camera set to the window size.
+        // This would work best for 2D applications and HUD elements.
+        Vec2 window_extents = v2_muls((Vec2){info.window_width, info.window_height}, 0.5f);
+        Rect window_bounds  = {window_extents, window_extents};
 
-        constants.mat_camera = mat4_transpose(mat_proj.mat);
-        /*constants.mat_camera = mat4_transpose(Mat4_Identity);*/
+        Camera *camera = &s->common.default_camera;
+        camera->proj = orthographic_projection(window_bounds, -100, 100);
+        camera->view.mat = Mat4_Identity;
+        camera->view.inv = invert_view_matrix(Mat4_Identity);
+        camera->center = (Vec3){0, 0, 0}; // TODO: Is this the correct center for the HUD?
+        camera->facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
 
         glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(constants), &constants);
@@ -657,10 +717,26 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
     }
 }
 
+static void draw__shader_set_camera(Draw_State* s, Camera* camera){
+    glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
+    Mat4 mat_camera = mat4_transpose(mat4_mul(camera->proj.mat, camera->view.mat));
+    glBufferSubData(
+        GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_camera), sizeof(Mat4), &mat_camera
+    );
+}
+
 void draw_frame_end(){
     Draw_State *s = &draw__state;
+    Camera* camera = &s->common.default_camera;
+    draw__shader_set_camera(s, camera);
     for(u32 layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
         Draw_Layer *layer = &s->common.layers[layer_index];
+        if(layer->camera != camera){
+            assert(layer->camera);
+            draw__shader_set_camera(s, layer->camera);
+            camera = layer->camera;
+        }
+
         draw__layer(s, layer);
         layer->cmd_last  = NULL;
         layer->cmd_first = NULL;

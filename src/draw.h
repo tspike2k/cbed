@@ -38,7 +38,7 @@ typedef struct {
     Vec3       facing;
 } Camera;
 
-Draw_XForm draw_orthographic_projection(Rect bounds, float n, float f);
+Draw_XForm orthographic_projection(Rect bounds, float n, float f);
 
 bool draw_begin(Buffer *memory);
 void draw_end();
