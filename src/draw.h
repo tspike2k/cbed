@@ -25,12 +25,20 @@ enum{
 
 typedef size_t Draw_Texture;
 
+// Combining forward and inverse matrices into one struct thanks to Handmade Hero
 typedef struct{
     Mat4 mat;
     Mat4 inv;
-} Mat4_Pair;
+} Draw_XForm;
 
-Mat4_Pair orthographic_projection(Rect bounds, float n, float f);
+typedef struct {
+    Draw_XForm proj;
+    Draw_XForm view;
+    Vec3       center;
+    Vec3       facing;
+} Camera;
+
+Draw_XForm draw_orthographic_projection(Rect bounds, float n, float f);
 
 bool draw_begin(Buffer *memory);
 void draw_end();

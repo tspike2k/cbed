@@ -37,6 +37,26 @@ typedef union{
     };
 } Vec4;
 
+Vec2  v2_sub(Vec2 a, Vec2 b);
+Vec2  v2_add(Vec2 a, Vec2 b);
+Vec2  v2_mul(Vec2 a, Vec2 b);
+Vec2  v2_muls(Vec2 a, float b);
+Vec2  v2_div(Vec2 a, Vec2 b);
+Vec3  v3_sub(Vec3 a, Vec3 b);
+Vec3  v3_add(Vec3 a, Vec3 b);
+Vec3  v3_mul(Vec3 a, Vec3 b);
+Vec3  v3_muls(Vec3 a, float b);
+Vec3  v3_div(Vec3 a, Vec3 b);
+Vec2  v2_normalize(Vec2 v);
+Vec3  v3_normalize(Vec3 a);
+float v2_squared(Vec2 v);
+float v3_squared(Vec3 v);
+float v2_length(Vec2 v);
+float v3_length(Vec3 v);
+float v2_dot(Vec2 a, Vec2 b);
+float v3_dot(Vec3 a, Vec3 b);
+Vec3  cross(Vec3 a, Vec3 b);
+
 typedef struct{
     Vec2 center;
     Vec2 extents;

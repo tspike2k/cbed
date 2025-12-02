@@ -84,7 +84,7 @@ static Draw_Cmd *draw__push_command(Draw_Layer *layer, u32 cmd_type, u32 cmd_siz
     return cmd;
 }
 
-Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
+Draw_XForm draw_orthographic_projection(Rect bounds, float n, float f){
     // Orthographic adapted from here:
     // https://songho.ca/opengl/gl_projectionmatrix.html#ortho
     // https://en.wikipedia.org/wiki/Orthographic_projection
@@ -93,7 +93,7 @@ Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
     auto t = bounds.center.y + bounds.extents.y;
     auto b = bounds.center.y - bounds.extents.y;
 
-    Mat4_Pair result;
+    Draw_XForm result;
     result.mat = (Mat4){{
         {2.0f / (r-l), 0,            0,             -(r+l)/(r-l)},
         {0,            2.0f / (t-b), 0,             -(t+b)/(t-b)},
@@ -107,6 +107,25 @@ Mat4_Pair orthographic_projection(Rect bounds, float n, float f){
         {0,            0,            (f-n) / -2.0f, -(f+n)/2.0f},
         {0,            0,            0,             1},
     }};
+    return result;
+}
+
+Mat4 draw_make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
+    Vec3 look_dir = v3_normalize(v3_sub(look_pos, camera_pos));
+    Vec3 up_dir   = up_pos;
+
+    Vec3 right_dir   = v3_normalize(cross(look_dir, up_dir));
+    Vec3 perp_up_dir = cross(right_dir, look_dir);
+
+    Mat4 result = (Mat4){{
+        {right_dir.x, perp_up_dir.x, -look_dir.x, 0},
+        {right_dir.y, perp_up_dir.y, -look_dir.y, 0},
+        {right_dir.z, perp_up_dir.z, -look_dir.z, 0},
+        {0,           0,             0,           1},
+    }};
+
+    camera_pos = v3_muls(camera_pos, -1);
+    result = mat4_mul(mat4_transpose(result), mat4_translate(camera_pos));
     return result;
 }
 
@@ -595,7 +614,7 @@ void draw_frame_begin(){
         float aspect_ratio = w / h;
         bounds.extents = (Vec2){0.5f*h*aspect_ratio, 0.5f*h};
         bounds.center = (Vec2){0, 0};
-        Mat4_Pair mat_proj = orthographic_projection(bounds, -100, 100);
+        Draw_XForm mat_proj = draw_orthographic_projection(bounds, -100, 100);
 
         constants.mat_camera = mat4_transpose(mat_proj.mat);
         /*constants.mat_camera = mat4_transpose(Mat4_Identity);*/

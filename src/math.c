@@ -6,6 +6,194 @@
 
 #include "math.h"
 
+#define Vec_OP(c, op) (a.c op b.c)
+
+Vec2 v2_sub(Vec2 a, Vec2 b){
+    Vec2 result = {
+        Vec_OP(x, -),
+        Vec_OP(y, -),
+    };
+    return result;
+}
+
+Vec2 v2_add(Vec2 a, Vec2 b){
+    Vec2 result = {
+        Vec_OP(x, +),
+        Vec_OP(y, +),
+    };
+    return result;
+}
+
+Vec2 v2_mul(Vec2 a, Vec2 b){
+    Vec2 result = {
+        Vec_OP(x, *),
+        Vec_OP(y, *),
+    };
+    return result;
+}
+
+Vec2 v2_muls(Vec2 a, float b){
+    Vec2 result = {
+        a.x * b,
+        a.y * b,
+    };
+    return result;
+}
+
+Vec2 v2_div(Vec2 a, Vec2 b){
+    Vec2 result = {
+        Vec_OP(x, /),
+        Vec_OP(y, /),
+    };
+    return result;
+}
+
+Vec3 v3_sub(Vec3 a, Vec3 b){
+    Vec3 result = {
+        Vec_OP(x, -),
+        Vec_OP(y, -),
+    };
+    return result;
+}
+
+Vec3 v3_add(Vec3 a, Vec3 b){
+    Vec3 result = {
+        Vec_OP(x, +),
+        Vec_OP(y, +),
+    };
+    return result;
+}
+
+Vec3 v3_mul(Vec3 a, Vec3 b){
+    Vec3 result = {
+        Vec_OP(x, *),
+        Vec_OP(y, *),
+    };
+    return result;
+}
+
+Vec3 v3_muls(Vec3 a, float b){
+    Vec3 result = {
+        a.x * b,
+        a.y * b,
+        a.z * b,
+    };
+    return result;
+}
+
+Vec3 v3_div(Vec3 a, Vec3 b){
+    Vec3 result = {
+        Vec_OP(x, /),
+        Vec_OP(y, /),
+    };
+    return result;
+}
+
+#undef Vec_OP
+
+Vec2 v2_normalize(Vec2 v){
+    float magnitude = sqrt(v.x * v.x + v.y * v.y);
+
+    Vec2 result = {0.0f, 0.0f};
+    if(magnitude != 0.0f){
+        result.x = v.x / magnitude;
+        result.y = v.y / magnitude;
+    }
+
+    return result;
+}
+
+Vec3 v3_normalize(Vec3 a){
+    float mag = sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
+
+    Vec3 result = {0.0f, 0.0f, 0.0f};
+    if(mag > 0.00001f){ // TODO: Better epsilon?
+        result = (Vec3){
+            a.x / mag,
+            a.y / mag,
+            a.z / mag
+        };
+    }
+    return result;
+}
+
+float v2_squared(Vec2 v){
+    float result = v.x*v.x + v.y*v.y;
+    return result;
+}
+
+float v3_squared(Vec3 v){
+    float result = v.x*v.x + v.y*v.y + v.z*v.z;
+    return result;
+}
+
+float v2_length(Vec2 v){
+    float result = sqrt(v.x * v.x + v.y * v.y);
+    return result;
+}
+
+float v3_length(Vec3 v){
+    float result = sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+    return result;
+}
+
+float v2_dot(Vec2 a, Vec2 b)
+{
+    return a.x * b.x + a.y * b.y;
+}
+
+float v3_dot(Vec3 a, Vec3 b)
+{
+    return a.x * b.x + a.y * b.y + a.z*b.z;
+}
+
+Vec3 cross(Vec3 a, Vec3 b){
+    Vec3 result = {
+        a.y*b.z - a.z*b.y,
+        a.z*b.x - a.x*b.z,
+        a.x*b.y - a.y*b.x
+    };
+    return result;
+}
+
+float v2_distance_between(Vec2 a, Vec2 b){
+    Vec2 diff = v2_sub(a, b);
+    float result = sqrt(diff.x * diff.x + diff.y * diff.y);
+    return result;
+}
+
+float squared(float n){
+    float result = n*n;
+    return result;
+}
+
+float v2_dist_sq(Vec2 a, Vec2 b){
+    Vec2 c = v2_sub(b, a);
+    float result = v2_dot(c, c);
+    return result;
+}
+
+float v3_dist_sq(Vec3 a, Vec3 b){
+    Vec3 c = v3_sub(b, a);
+    float result = v3_dot(c, c);
+    return result;
+}
+
+float lerp(float start, float end, float t){
+    float result = (end * t) + (start * (1.0f - t));
+    return result;
+}
+
+Vec4 v4_lerp(Vec4 a, Vec4 b, float t){
+    Vec4 result = {{
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.z, b.z, t),
+        lerp(a.w, b.w, t),
+    }};
+    return result;
+}
+
 Rect rect_from_min_wh(Vec2 min_p, float w, float h){
     Vec2 extents = {w*0.5f, h*0.5f};
     Vec2 center  = {min_p.x + extents.x, min_p.y + extents.y};
@@ -83,6 +271,26 @@ Mat4 mat4_transpose(Mat4 a){
     Mat4_OP(3, 3);
 #undef Mat4_OP
 
+    return result;
+}
+
+Mat4 mat4_scale(Vec3 s){
+    Mat4 result = {{
+        {s.x,   0,    0,   0},
+        {  0, s.y,    0,   0},
+        {  0,   0,  s.z,   0},
+        {  0,   0,    0,   1},
+    }};
+    return result;
+}
+
+Mat4 mat4_translate(Vec3 offset){
+    Mat4 result = {{
+        {1.0f, 0.0f, 0.0f, offset.x},
+        {0.0f, 1.0f, 0.0f, offset.y},
+        {0.0f, 0.0f, 1.0f, offset.z},
+        {0.0f, 0.0f, 0.0f, 1.0f},
+    }};
     return result;
 }
 
