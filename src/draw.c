@@ -704,6 +704,7 @@ static void draw__shader_set_camera(Draw_State* s, Camera* camera){
 void draw_frame_end(){
     Draw_State *s = &draw__state;
     Camera* camera = &s->common.default_camera;
+
     draw__shader_set_camera(s, camera);
     for(u32 layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
         Draw_Layer *layer = &s->common.layers[layer_index];
@@ -742,14 +743,18 @@ void draw_frame_end(){
                 case Draw_Cmd_Type_Vertices:{
                     Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)cmd_base;
 
-                    auto x_form = mat4_transpose(cmd->xform);
+#if 1
+                Mat4 mat_camera = mat4_transpose(mat4_mul(camera->proj.mat, camera->view.mat));
+                    auto x_form = mat4_mul(mat4_transpose(cmd->xform), mat_camera);
                     glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
                     glBufferSubData(
                         /*GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_model),*/
                         GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_camera),
                         sizeof(Mat4), &x_form
                     );
+#endif
 
+                    glUseProgram(s->default_shader);
                     glBindBuffer(GL_ARRAY_BUFFER, s->quad_vbo);
                     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(cmd->vertices_count*sizeof(Draw_Vertex)), cmd->vertices, GL_DYNAMIC_DRAW);
                     glDrawArrays(GL_TRIANGLES, 0, (u32)cmd->vertices_count);
