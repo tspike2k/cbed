@@ -267,8 +267,9 @@ int main(){
         Display_Info display = display_get_info();
         Vec3 screen_center = v3_muls((Vec3){display.window_width, display.window_height, 0}, 0.5f);
 
-        Mat4 scale = mat4_scale((Vec3){50, 50, 50});
+        Mat4 scale = mat4_scale((Vec3){200, 200, 200});
         Mat4 xform = mat4_mul(mat4_translate(screen_center), scale);
+        draw_set_shader_3D();
         draw_vertices(xform, &cube_mesh[0], Array_Len(cube_mesh));
 
         draw_frame_end();

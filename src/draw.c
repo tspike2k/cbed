@@ -25,6 +25,7 @@ enum{
     Draw_Cmd_Type_None,
     Draw_Cmd_Type_Quad,
     Draw_Cmd_Type_Vertices,
+    Draw_Cmd_Type_Set_Shader,
 };
 
 typedef struct Draw_Cmd Draw_Cmd;
@@ -50,6 +51,11 @@ typedef struct{
     size_t       vertices_count;
 } Draw_Cmd_Vertices;
 
+typedef struct{
+    Draw_Cmd_Fields;
+    Draw_Shader shader;
+} Draw_Cmd_Set_Shader;
+
 typedef struct {
     Camera   *camera;
     Draw_Cmd *cmd_first;
@@ -65,6 +71,8 @@ typedef struct{
     Vec2         solid_quad_uvs_max;
     Draw_Texture blank_texture;
     Camera       default_camera;
+    Draw_Shader  shader_default_2d;
+    Draw_Shader  shader_default_3d;
 } Draw_State_Common;
 
 static Draw_Layer *draw__get_active_layer(){
@@ -246,6 +254,24 @@ void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
     cmd->xform = xform;
     cmd->vertices = v;
     cmd->vertices_count = vertex_count;
+}
+
+void draw_set_shader_3D(){
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
+    Draw_Layer *layer = draw__get_active_layer();
+    Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)draw__push_command(
+        layer, Draw_Cmd_Type_Set_Shader, sizeof(Draw_Cmd_Set_Shader)
+    );
+    cmd->shader = s->shader_default_3d;
+}
+
+void draw_set_shader_2D(){
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
+    Draw_Layer *layer = draw__get_active_layer();
+    Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)draw__push_command(
+        layer, Draw_Cmd_Type_Set_Shader, sizeof(Draw_Cmd_Set_Shader)
+    );
+    cmd->shader = s->shader_default_2d;
 }
 
 void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
@@ -431,15 +457,18 @@ typedef struct{
     float time;
 } Draw_Constants;
 
-static const char *draw__default_vert =
-"#version 330\n"
-"layout(std140) uniform Constants{\n"
-"    mat4  mat_camera;\n"
-"    mat4  mat_model;\n"
-"    mat4  mat_light;\n"
-"    vec3  camera_pos;\n" // TODO: Is there some way to do lighting without this?
-"    float time;\n"
+#define Shader_Preamble               \
+"#version 330\n"                      \
+"layout(std140) uniform Constants{\n" \
+"    mat4  mat_camera;\n"             \
+"    mat4  mat_model;\n"              \
+"    mat4  mat_light;\n"              \
+"    vec3  camera_pos;\n"             \
+"    float time;\n"                   \
 "};\n"
+
+static const char *draw__2d_shader_vert_src =
+Shader_Preamble
 "in vec3 v_pos;\n"
 "in vec3 v_normal;\n"
 "in vec2 v_uv;\n"
@@ -461,8 +490,44 @@ static const char *draw__default_vert =
 "    f_uv        = v_uv;\n"
 "}\n";
 
-static const char *draw__default_frag =
-"#version 330\n"
+static const char *draw__2d_shader_frag_src =
+Shader_Preamble
+"in vec2  f_uv;\n"
+"in vec4  f_color;\n"
+"out vec4 out_color;\n"
+"\n"
+"uniform sampler2D u_texture;\n" // TODO: How do we set the texture index for the uniform? Is it one by default?
+"\n"
+"void main(){\n"
+"    vec4 tex_color = texture(u_texture, f_uv);\n"
+"    out_color = tex_color*vec4(f_color.rgb*f_color.a, f_color.a);\n"
+"}\n";
+
+static const char *draw__3d_shader_vert_src =
+Shader_Preamble
+"in vec3 v_pos;\n"
+"in vec3 v_normal;\n"
+"in vec2 v_uv;\n"
+"in uint v_color;\n"
+"\n"
+"out vec2 f_uv;\n"
+"out vec4 f_color;\n"
+"\n"
+"void main(){\n"
+"    gl_Position = mat_camera*mat_model*vec4(v_pos, 1);\n"
+"    // For some reason, GLSL considers hex literals to be signed integers by default.\n"
+"    // To do bit manipulation, we either need to cast hex literals to uint or append a.\n"
+"    // 'u' to the end of the literal. How bizarre.\n"
+"    float r = ((v_color >> 24) & 0xffu) / 255.0;\n"
+"    float g = ((v_color >> 16) & 0xffu) / 255.0;\n"
+"    float b = ((v_color >>  8) & 0xffu) / 255.0;\n"
+"    float a = ((v_color >>  0) & 0xffu) / 255.0;\n"
+"    f_color     = vec4(r, g, b, a);\n"
+"    f_uv        = v_uv;\n"
+"}\n";
+
+static const char *draw__3d_shader_frag_src =
+Shader_Preamble
 "in vec2  f_uv;\n"
 "in vec4  f_color;\n"
 "out vec4 out_color;\n"
@@ -484,7 +549,6 @@ enum{
 struct Draw_State{
     Draw_State_Common common;
     GLuint quad_vbo;
-    GLuint default_shader;
     GLuint constants_ubo;
 };
 
@@ -644,7 +708,14 @@ bool draw_begin(Buffer *memory){
         glBindBufferRange(GL_UNIFORM_BUFFER, Draw__Constants_Uniform_Binding, s->constants_ubo, 0, sizeof(Draw_Constants));
         glBufferData(GL_UNIFORM_BUFFER, sizeof(Draw_Constants), NULL, GL_DYNAMIC_DRAW); // TODO: Is static draw correct? We re-upload every frame.
 
-        s->default_shader = draw__compile_shader("default", draw__default_vert, draw__default_frag);
+        s->common.shader_default_2d = draw__compile_shader(
+            "Default 2D", draw__2d_shader_vert_src, draw__2d_shader_frag_src
+        );
+        s->common.shader_default_3d = draw__compile_shader(
+            "Default 3D", draw__3d_shader_vert_src, draw__3d_shader_frag_src
+        );
+
+        /*s->default_shader = draw__compile_shader("Default 2D", draw__default_vert, draw__default_frag);*/
 
         u32 tex_w = 4;
         u32 tex_h = 4;
@@ -714,12 +785,21 @@ void draw_frame_end(){
             camera = layer->camera;
         }
 
+        GLuint current_shader = s->common.shader_default_2d;
+        glUseProgram(current_shader);
+
         Draw_Cmd* cmd_base = layer->cmd_first;
         Draw_Texture texture = s->common.blank_texture;
         glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
         while(cmd_base){
             switch(cmd_base->type){
                 default: assert(0);
+
+                case Draw_Cmd_Type_Set_Shader:{
+                    Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)cmd_base;
+                    current_shader = (GLuint)cmd->shader;
+                    glUseProgram(current_shader);
+                } break;
 
                 case Draw_Cmd_Type_Quad:{
                     Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad *)cmd_base;
@@ -732,7 +812,6 @@ void draw_frame_end(){
                     u32 total_vertex_size = cmd->vertex_count * sizeof(Draw_Vertex);
                     Draw_Vertex *v = (Draw_Vertex *)(cmd+1);
 
-                    glUseProgram(s->default_shader);
                     glBindBuffer(GL_ARRAY_BUFFER, s->quad_vbo);
                     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(total_vertex_size), v, GL_DYNAMIC_DRAW);
                     glDrawArrays(GL_TRIANGLES, 0, cmd->vertex_count);
@@ -743,18 +822,13 @@ void draw_frame_end(){
                 case Draw_Cmd_Type_Vertices:{
                     Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)cmd_base;
 
-#if 1
-                Mat4 mat_camera = mat4_transpose(mat4_mul(camera->proj.mat, camera->view.mat));
-                    auto x_form = mat4_mul(mat4_transpose(cmd->xform), mat_camera);
+                    auto x_form = mat4_transpose(cmd->xform);
                     glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
                     glBufferSubData(
-                        /*GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_model),*/
-                        GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_camera),
+                        GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_model),
                         sizeof(Mat4), &x_form
                     );
-#endif
 
-                    glUseProgram(s->default_shader);
                     glBindBuffer(GL_ARRAY_BUFFER, s->quad_vbo);
                     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(cmd->vertices_count*sizeof(Draw_Vertex)), cmd->vertices, GL_DYNAMIC_DRAW);
                     glDrawArrays(GL_TRIANGLES, 0, (u32)cmd->vertices_count);

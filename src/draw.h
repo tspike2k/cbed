@@ -24,6 +24,7 @@ enum{
 };
 
 typedef size_t Draw_Texture;
+typedef size_t Draw_Shader;
 
 // Combining forward and inverse matrices into one struct thanks to Handmade Hero
 typedef struct{
@@ -54,6 +55,10 @@ void draw_frame_end();
 void draw_rect(Rect r, u32 color);
 void draw_rect_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
 void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count);
+
+// Default shaders
+void draw_set_shader_3D();
+void draw_set_shader_2D();
 
 Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
 void draw_destroy_texture(Draw_Texture *texture);
