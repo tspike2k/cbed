@@ -237,6 +237,12 @@ Draw_Vertex cube_mesh[3*12] = {
     },
 };
 
+static void set_world_projection(Camera* camera, float width, float height){
+    Vec2 camera_extents = {width*0.5f, height*0.5f};
+    Rect camera_bounds = {camera_extents, camera_extents};
+    camera->proj = orthographic_projection(camera_bounds, -100, 100);
+}
+
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
@@ -244,6 +250,9 @@ int main(){
     bool running = display_begin("Box", 1024, 768, display_flags)
         && draw_begin(&memory);
 
+    Vec3 camera_polar = (Vec3){90, -45, 1}; // TODO: Make these in radian eventually
+
+    f32 dt = 2.0f; // TODO: Actually do frame timing.
     while(running){
         Event event;
         while(display_next_event(&event)){
@@ -254,6 +263,12 @@ int main(){
                     running = false;
                 } break;
 
+                case Event_Type_Mouse_Motion:{
+                    Event_Mouse_Motion *motion = &event.mouse_motion;
+                    camera_polar.x += motion->rel_x * dt;
+                    camera_polar.y += motion->rel_y * dt;
+                } break;
+
                 case Event_Type_Key:{
                     Event_Key *key = &event.key;
                     running = key->id != Key_ID_Escape;
@@ -261,15 +276,25 @@ int main(){
             }
         }
 
+        Display_Info display = display_get_info();
+        Vec3 screen_center = v3_muls((Vec3){display.window_width, display.window_height, 0}, 0.5f);
+        Vec3 cube_pos = v3_add(screen_center, (Vec3){0, 0, 0});
+
+        /*fmt_msg("Polar: {0}, {1}, {2}\n", fmt_f(camera_polar.x), fmt_f(camera_polar.y), fmt_f(camera_polar.z));*/
+
+        Camera camera = {};
+        set_world_projection(&camera, display.window_width, display.window_height);
+        camera.center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
+        camera.facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
+        camera.view = camera_view_from_polar(camera_polar, cube_pos, (Vec3){0, 1, 0});
+
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
 
-        Display_Info display = display_get_info();
-        Vec3 screen_center = v3_muls((Vec3){display.window_width, display.window_height, 0}, 0.5f);
-
         Mat4 scale = mat4_scale((Vec3){200, 200, 200});
-        Mat4 xform = mat4_mul(mat4_translate(screen_center), scale);
+        Mat4 xform = mat4_mul(mat4_translate(cube_pos), scale);
         draw_set_shader_3D();
+        draw_set_camera(&camera);
         draw_vertices(xform, &cube_mesh[0], Array_Len(cube_mesh));
 
         draw_frame_end();

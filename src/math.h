@@ -16,6 +16,8 @@ extern double pow(double x, double y);
 extern double ceil(double x);
 extern double sqrt(double x);
 extern double floor(double x);
+extern double sin(double x);
+extern double cos(double x);
 
 #define PI  3.141592653589793f
 #define TAU (PI*2.0f)
@@ -77,5 +79,6 @@ extern Mat4 Mat4_Identity;
 
 u32 premultiply_alpha(u32 c);
 
+Vec3 polar_to_world(Vec3 polar, Vec3 target_pos);
 
 #endif // CEABED_MATH_HPP

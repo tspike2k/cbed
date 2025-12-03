@@ -121,6 +121,16 @@ Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     return result;
 }
 
+Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up){
+    Draw_XForm result;
+
+    Vec3 camera_world = polar_to_world(camera_polar, camera_target);
+    result.mat = make_lookat_matrix(camera_world, camera_target, up);
+    result.inv = invert_view_matrix(result.mat);
+
+    return result;
+}
+
 Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     Vec3 look_dir = v3_normalize(v3_sub(look_pos, camera_pos));
     Vec3 up_dir   = up_pos;
@@ -304,6 +314,11 @@ void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t te
         pen.x += (float)glyph->advance;
         prev_codepoint = c;
     }
+}
+
+void draw_set_camera(Camera *camera){
+    Draw_Layer *layer = draw__get_active_layer();
+    layer->camera = camera;
 }
 
 //
@@ -756,7 +771,7 @@ void draw_frame_begin(){
         camera->proj = orthographic_projection(window_bounds, -100, 100);
         camera->view.mat = Mat4_Identity;
         camera->view.inv = invert_view_matrix(Mat4_Identity);
-        camera->center = (Vec3){0, 0, 0}; // TODO: Is this the correct center for the HUD?
+        camera->center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
         camera->facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
 
         glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);

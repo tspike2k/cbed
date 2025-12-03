@@ -46,7 +46,10 @@ typedef struct {
     u32 color;
 } Draw_Vertex;
 
+Mat4 invert_view_matrix(Mat4 view);
+Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos);
 Draw_XForm orthographic_projection(Rect bounds, float n, float f);
+Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up);
 
 bool draw_begin(Buffer *memory);
 void draw_end();

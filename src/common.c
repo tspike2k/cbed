@@ -32,6 +32,13 @@ Fmt_Arg fmt_i(int64_t value){
     return result;
 }
 
+Fmt_Arg fmt_f(float value){
+    Fmt_Arg result = {};
+    result.info = Fmt_Type_Float;
+    result.data_float = value;
+    return result;
+}
+
 Fmt_Arg fmt_cstr(const char *value){
     Fmt_Arg result = {};
     result.info = Fmt_Type_C_String;
@@ -54,6 +61,8 @@ static size_t fmt__s64(char *buffer, size_t buffer_length, int64_t value, uint32
     return cursor;
 }
 
+#include <stdio.h> // TODO: Use float conversion functiosn sourced from stb.
+
 static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
     char temp_buffer[512];
     size_t buffer_size = Array_Len(temp_buffer);
@@ -63,6 +72,11 @@ static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
         case Fmt_Type_Signed_Integer:{
             size_t cursor = fmt__s64(&temp_buffer[0], buffer_size, arg.data_int, 10);
             put(&temp_buffer[cursor], buffer_size - cursor, dest);
+        } break;
+
+        case Fmt_Type_Float:{
+            snprintf(&temp_buffer[0], buffer_size, "%f", arg.data_float);
+            put(&temp_buffer[0], strlen(&temp_buffer[0]), dest);
         } break;
 
         case Fmt_Type_C_String:{

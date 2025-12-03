@@ -87,6 +87,7 @@ typedef struct{
     union{
         int64_t     data_int;
         uint64_t    data_uint;
+        float       data_float;
         const char *data_cstr;
         void       *data_pointer;
     };
@@ -128,6 +129,7 @@ typedef void (*Fmt_Put_Func)(const char *text, size_t text_count, void *user_dat
 
 Fmt_Arg fmt_i(int64_t value);
 Fmt_Arg fmt_cstr(const char *s);
+Fmt_Arg fmt_f(float value);
 
 void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data);
 void fmt_msg_put(const char* msg, size_t msg_length);
