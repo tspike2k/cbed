@@ -24,6 +24,7 @@ static Draw_State draw__state;
 enum{
     Draw_Cmd_Type_None,
     Draw_Cmd_Type_Quad,
+    Draw_Cmd_Type_Vertices,
 };
 
 typedef struct Draw_Cmd Draw_Cmd;
@@ -42,12 +43,12 @@ typedef struct{
     u32          vertex_count;
 } Draw_Cmd_Quad;
 
-typedef struct {
-    Vec3 pos;
-    Vec3 normal;
-    Vec2 uv;
-    u32 color;
-} Draw_Vertex;
+typedef struct{
+    Draw_Cmd_Fields;
+    Mat4         xform;
+    Draw_Vertex *vertices;
+    size_t       vertices_count;
+} Draw_Cmd_Vertices;
 
 typedef struct {
     Camera   *camera;
@@ -227,16 +228,24 @@ static Draw_Vertex *draw__add_quad_cmd(Draw_Layer* layer, Draw_Texture texture, 
     return result;
 }
 
-void draw_quad_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
+void draw_rect_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Vertex *v = draw__add_quad_cmd(layer, texture, Draw__Vertex_Per_Quad);
     draw__set_quad(v, r, color, uvs);
 }
 
-void draw_quad(Rect r, u32 color){
+void draw_rect(Rect r, u32 color){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});
-    draw_quad_textured(r, color, s->blank_texture, uvs);
+    draw_rect_textured(r, color, s->blank_texture, uvs);
+}
+
+void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
+    Draw_Layer *layer = draw__get_active_layer();
+    Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)draw__push_command(layer, Draw_Cmd_Type_Vertices, sizeof(Draw_Cmd_Vertices));
+    cmd->xform = xform;
+    cmd->vertices = v;
+    cmd->vertices_count = vertex_count;
 }
 
 void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
@@ -684,9 +693,27 @@ void draw_frame_begin(){
     }
 }
 
-static void draw__layer(Draw_State *s, Draw_Layer *layer){
-    Draw_Cmd* cmd_base = layer->cmd_first;
-    if(s->common.hw_rendering){
+static void draw__shader_set_camera(Draw_State* s, Camera* camera){
+    glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
+    Mat4 mat_camera = mat4_transpose(mat4_mul(camera->proj.mat, camera->view.mat));
+    glBufferSubData(
+        GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_camera), sizeof(Mat4), &mat_camera
+    );
+}
+
+void draw_frame_end(){
+    Draw_State *s = &draw__state;
+    Camera* camera = &s->common.default_camera;
+    draw__shader_set_camera(s, camera);
+    for(u32 layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
+        Draw_Layer *layer = &s->common.layers[layer_index];
+        if(layer->camera != camera){
+            assert(layer->camera);
+            draw__shader_set_camera(s, layer->camera);
+            camera = layer->camera;
+        }
+
+        Draw_Cmd* cmd_base = layer->cmd_first;
         Draw_Texture texture = s->common.blank_texture;
         glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
         while(cmd_base){
@@ -711,33 +738,26 @@ static void draw__layer(Draw_State *s, Draw_Layer *layer){
                     /*glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s->quad_index_buffer);*/
                     /*glDrawElements(GL_TRIANGLES, (GLsizei)(vertex_count * Draw__Indeces_Per_Quad), GL_UNSIGNED_INT, (GLvoid*)0);*/
                 } break;
+
+                case Draw_Cmd_Type_Vertices:{
+                    Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)cmd_base;
+
+                    auto x_form = mat4_transpose(cmd->xform);
+                    glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
+                    glBufferSubData(
+                        /*GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_model),*/
+                        GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_camera),
+                        sizeof(Mat4), &x_form
+                    );
+
+                    glBindBuffer(GL_ARRAY_BUFFER, s->quad_vbo);
+                    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(cmd->vertices_count*sizeof(Draw_Vertex)), cmd->vertices, GL_DYNAMIC_DRAW);
+                    glDrawArrays(GL_TRIANGLES, 0, (u32)cmd->vertices_count);
+                } break;
             }
             cmd_base = cmd_base->next;
         }
-    }
-}
 
-static void draw__shader_set_camera(Draw_State* s, Camera* camera){
-    glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
-    Mat4 mat_camera = mat4_transpose(mat4_mul(camera->proj.mat, camera->view.mat));
-    glBufferSubData(
-        GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_camera), sizeof(Mat4), &mat_camera
-    );
-}
-
-void draw_frame_end(){
-    Draw_State *s = &draw__state;
-    Camera* camera = &s->common.default_camera;
-    draw__shader_set_camera(s, camera);
-    for(u32 layer_index = Draw_Layer_None+1; layer_index < Draw_Layer_Total; layer_index++){
-        Draw_Layer *layer = &s->common.layers[layer_index];
-        if(layer->camera != camera){
-            assert(layer->camera);
-            draw__shader_set_camera(s, layer->camera);
-            camera = layer->camera;
-        }
-
-        draw__layer(s, layer);
         layer->cmd_last  = NULL;
         layer->cmd_first = NULL;
     }

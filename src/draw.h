@@ -38,15 +38,22 @@ typedef struct {
     Vec3       facing;
 } Camera;
 
+typedef struct {
+    Vec3 pos;
+    Vec3 normal;
+    Vec2 uv;
+    u32 color;
+} Draw_Vertex;
+
 Draw_XForm orthographic_projection(Rect bounds, float n, float f);
 
 bool draw_begin(Buffer *memory);
 void draw_end();
 void draw_frame_begin();
 void draw_frame_end();
-void draw_quad(Rect r, u32 color);
-void draw_quad_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
-void draw_init_layer(u32 layer_id, size_t buffer_size);
+void draw_rect(Rect r, u32 color);
+void draw_rect_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
+void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count);
 
 Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
 void draw_destroy_texture(Draw_Texture *texture);
