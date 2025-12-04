@@ -41,19 +41,19 @@ Draw_Vertex cube_mesh[3*12] = {
         .pos =    {0.500000, 0.500000, 0.500000},
         .normal = {-0.000000, -0.000000, 1.000000},
         .uv     = {0.625000, 0.750000},
-        .color  = Box_Color,
+        .color  = 0xffff0000,
     },
     {
         .pos =    {-0.500000, -0.500000, 0.500000},
         .normal = {-0.000000, -0.000000, 1.000000},
         .uv     = {0.375000, 1.000000},
-        .color  = Box_Color,
+        .color  = 0xffff0000,
     },
     {
         .pos =    {0.500000, -0.500000, 0.500000},
         .normal = {-0.000000, -0.000000, 1.000000},
         .uv     = {0.375000, 0.750000},
-        .color  = Box_Color,
+        .color  = 0xffff0000,
     },
     {
         .pos =    {-0.500000, 0.500000, 0.500000},
@@ -113,19 +113,19 @@ Draw_Vertex cube_mesh[3*12] = {
         .pos =    {-0.500000, 0.500000, -0.500000},
         .normal = {-0.000000, -0.000000, -1.000000},
         .uv     = {0.625000, 0.250000},
-        .color  = Box_Color,
+        .color  = 0xff0000ff,
     },
     {
         .pos =    {0.500000, -0.500000, -0.500000},
         .normal = {-0.000000, -0.000000, -1.000000},
         .uv     = {0.375000, 0.500000},
-        .color  = Box_Color,
+        .color  = 0xff0000ff,
     },
     {
         .pos =    {-0.500000, -0.500000, -0.500000},
         .normal = {-0.000000, -0.000000, -1.000000},
         .uv     = {0.375000, 0.250000},
-        .color  = Box_Color,
+        .color  = 0xff0000ff,
     },
     {
         .pos =    {-0.500000, 0.500000, -0.500000},
@@ -149,19 +149,19 @@ Draw_Vertex cube_mesh[3*12] = {
         .pos =    {0.500000, 0.500000, 0.500000},
         .normal = {-0.000000, -0.000000, 1.000000},
         .uv     = {0.625000, 0.750000},
-        .color  = Box_Color,
+        .color  = 0xffff0000,
     },
     {
         .pos =    {-0.500000, 0.500000, 0.500000},
         .normal = {-0.000000, -0.000000, 1.000000},
         .uv     = {0.625000, 1.000000},
-        .color  = Box_Color,
+        .color  = 0xffff0000,
     },
     {
         .pos =    {-0.500000, -0.500000, 0.500000},
         .normal = {-0.000000, -0.000000, 1.000000},
         .uv     = {0.375000, 1.000000},
-        .color  = Box_Color,
+        .color  = 0xffff0000,
     },
     {
         .pos =    {-0.500000, 0.500000, 0.500000},
@@ -221,26 +221,26 @@ Draw_Vertex cube_mesh[3*12] = {
         .pos =    {-0.500000, 0.500000, -0.500000},
         .normal = {-0.000000, -0.000000, -1.000000},
         .uv     = {0.625000, 0.250000},
-        .color  = Box_Color,
+        .color  = 0xff0000ff,
     },
     {
         .pos =    {0.500000, 0.500000, -0.500000},
         .normal = {-0.000000, -0.000000, -1.000000},
         .uv     = {0.625000, 0.500000},
-        .color  = Box_Color,
+        .color  = 0xff0000ff,
     },
     {
         .pos =    {0.500000, -0.500000, -0.500000},
         .normal = {-0.000000, -0.000000, -1.000000},
         .uv     = {0.375000, 0.500000},
-        .color  = Box_Color,
+        .color  = 0xff0000ff,
     },
 };
 
 static void set_world_projection(Camera* camera, float width, float height){
     Vec2 camera_extents = {width*0.5f, height*0.5f};
     Rect camera_bounds = {camera_extents, camera_extents};
-    camera->proj = orthographic_projection(camera_bounds, -100, 100);
+    camera->proj = orthographic_projection(camera_bounds, -1000, 1000);
 }
 
 int main(){
@@ -251,6 +251,8 @@ int main(){
         && draw_begin(&memory);
 
     Vec3 camera_polar = (Vec3){90, -45, 1}; // TODO: Make these in radian eventually
+
+    float t = 0;
 
     f32 dt = 2.0f; // TODO: Actually do frame timing.
     while(running){
@@ -267,6 +269,7 @@ int main(){
                     Event_Mouse_Motion *motion = &event.mouse_motion;
                     camera_polar.x += motion->rel_x * dt;
                     camera_polar.y += motion->rel_y * dt;
+                    clampf(&camera_polar.y, -78.75f, 0.0f);
                 } break;
 
                 case Event_Type_Key:{
@@ -282,16 +285,21 @@ int main(){
 
         /*fmt_msg("Polar: {0}, {1}, {2}\n", fmt_f(camera_polar.x), fmt_f(camera_polar.y), fmt_f(camera_polar.z));*/
 
+        t += dt;
+
         Camera camera = {};
         set_world_projection(&camera, display.window_width, display.window_height);
         camera.center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
         camera.facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
         camera.view = camera_view_from_polar(camera_polar, cube_pos, (Vec3){0, 1, 0});
+        /*camera.view.mat = mat4_rot_x(t*(PI/180.0f));*/
+        /*camera.view.mat = Mat4_Identity;*/
+        /*camera.view.inv = invert_view_matrix(camera.view.mat);*/
 
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
 
-        Mat4 scale = mat4_scale((Vec3){200, 200, 200});
+        Mat4 scale = mat4_scale((Vec3){100, 100, 100});
         Mat4 xform = mat4_mul(mat4_translate(cube_pos), scale);
         draw_set_shader_3D();
         draw_set_camera(&camera);

@@ -123,7 +123,6 @@ Draw_XForm orthographic_projection(Rect bounds, float n, float f){
 
 Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up){
     Draw_XForm result;
-
     Vec3 camera_world = polar_to_world(camera_polar, camera_target);
     result.mat = make_lookat_matrix(camera_world, camera_target, up);
     result.inv = invert_view_matrix(result.mat);
@@ -138,7 +137,7 @@ Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     Vec3 right_dir   = v3_normalize(cross(look_dir, up_dir));
     Vec3 perp_up_dir = cross(right_dir, look_dir);
 
-    Mat4 result = (Mat4){{
+    Mat4 result = {{
         {right_dir.x, perp_up_dir.x, -look_dir.x, 0},
         {right_dir.y, perp_up_dir.y, -look_dir.y, 0},
         {right_dir.z, perp_up_dir.z, -look_dir.z, 0},
@@ -550,8 +549,7 @@ Shader_Preamble
 "uniform sampler2D u_texture;\n" // TODO: How do we set the texture index for the uniform? Is it one by default?
 "\n"
 "void main(){\n"
-"    vec4 tex_color = texture(u_texture, f_uv);\n"
-"    out_color = tex_color*vec4(f_color.rgb*f_color.a, f_color.a);\n"
+"    out_color = vec4(f_color.rgb*f_color.a, f_color.a);\n"
 "}\n";
 
 enum{
@@ -680,6 +678,13 @@ bool draw_begin(Buffer *memory){
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // Using premultiplied alpha
+
+#if 0
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS);
+        glDepthRange(-1000, 1000);
+#endif
 
         // According to Casey Muratori (Handmade Hero ep 372), driver vendors realized that
         // state changes through VAOs is actually quite inefficient.  So here, we set one once

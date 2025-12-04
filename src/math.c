@@ -6,6 +6,10 @@
 
 #include "math.h"
 
+void clampf(f32 *value, f32 min_val, f32 max_val){
+    *value = *value < min_val ? min_val : (*value > max_val ? max_val : *value);
+}
+
 #define Vec_OP(c, op) (a.c op b.c)
 
 Vec2 v2_sub(Vec2 a, Vec2 b){
@@ -52,6 +56,7 @@ Vec3 v3_sub(Vec3 a, Vec3 b){
     Vec3 result = {
         Vec_OP(x, -),
         Vec_OP(y, -),
+        Vec_OP(z, -),
     };
     return result;
 }
@@ -60,6 +65,7 @@ Vec3 v3_add(Vec3 a, Vec3 b){
     Vec3 result = {
         Vec_OP(x, +),
         Vec_OP(y, +),
+        Vec_OP(z, +),
     };
     return result;
 }
@@ -68,6 +74,7 @@ Vec3 v3_mul(Vec3 a, Vec3 b){
     Vec3 result = {
         Vec_OP(x, *),
         Vec_OP(y, *),
+        Vec_OP(z, *),
     };
     return result;
 }
@@ -290,6 +297,45 @@ Mat4 mat4_translate(Vec3 offset){
         {0.0f, 1.0f, 0.0f, offset.y},
         {0.0f, 0.0f, 1.0f, offset.z},
         {0.0f, 0.0f, 0.0f, 1.0f},
+    }};
+    return result;
+}
+
+Mat4 mat4_rot_x(float angle_rad){
+    float c = cos(angle_rad);
+    float s = sin(angle_rad);
+
+    Mat4 result = {{
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, c,    -s,   0.0f},
+        {0.0f, s,     c,   0.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f}
+    }};
+    return result;
+}
+
+Mat4 mat4_rot_y(float angle_rad){
+    float c = cos(angle_rad);
+    float s = sin(angle_rad);
+
+    Mat4 result = {{
+        {c,    0.0f, s,    0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {-s,   0.0f, c,    0.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f}
+    }};
+    return result;
+}
+
+Mat4 mat4_rot_z(float angle_rad){
+    float c = cos(angle_rad);
+    float s = sin(angle_rad);
+
+    Mat4 result = {{
+        {c,   -s,    0.0f, 0.0f},
+        {s,    c,    0.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f}
     }};
     return result;
 }

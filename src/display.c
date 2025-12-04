@@ -803,10 +803,17 @@ static bool display__process_event(XEvent *xevt, Event *evt){
                                 if (XIMaskIsSet(raw->valuators.mask, 0)){
                                     mouse->rel_x = raw->raw_values[0];
                                 }
+                                else{
+                                    mouse->rel_x = 0;
+                                }
 
                                 if (XIMaskIsSet(raw->valuators.mask, 1)){
                                     mouse->rel_y = raw->raw_values[1];
                                 }
+                                else{
+                                    mouse->rel_y = 0;
+                                }
+
                                 mouse->pixel_x = s->last_mouse_x;
                                 mouse->pixel_y = s->last_mouse_y;
                                 event_translated = true;
