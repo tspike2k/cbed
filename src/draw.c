@@ -99,10 +99,10 @@ Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     // Orthographic adapted from here:
     // https://songho.ca/opengl/gl_projectionmatrix.html#ortho
     // https://en.wikipedia.org/wiki/Orthographic_projection
-    auto l = bounds.center.x - bounds.extents.x;
-    auto r = bounds.center.x + bounds.extents.x;
-    auto t = bounds.center.y + bounds.extents.y;
-    auto b = bounds.center.y - bounds.extents.y;
+    f32 l = bounds.center.x - bounds.extents.x;
+    f32 r = bounds.center.x + bounds.extents.x;
+    f32 t = bounds.center.y + bounds.extents.y;
+    f32 b = bounds.center.y - bounds.extents.y;
 
     Draw_XForm result;
     result.mat = (Mat4){{
@@ -154,7 +154,7 @@ Mat4 invert_view_matrix(Mat4 view){
     // applied.
 
     // Transpose 3x3 rotation portion of the view to invert it.
-    Mat4 rot = (Mat4){{
+    Mat4 rot = {{
         {view.m[0][0], view.m[1][0], view.m[2][0], 0},
         {view.m[0][1], view.m[1][1], view.m[2][1], 0},
         {view.m[0][2], view.m[1][2], view.m[2][2], 0},
@@ -163,9 +163,9 @@ Mat4 invert_view_matrix(Mat4 view){
 
     // Negate the translation portion of the view to invert it.
     Vec3 p = {
-        view.m[0][3],
-        view.m[1][3],
-        view.m[2][3]
+        -view.m[0][3],
+        -view.m[1][3],
+        -view.m[2][3]
     };
     Mat4 result = mat4_mul(rot, mat4_translate(p));
     return result;
@@ -762,7 +762,7 @@ void draw_frame_begin(){
     if(s->common.hw_rendering){
         Display_Info info = display_get_info();
         glViewport(0, 0, info.window_width, info.window_height);
-        glClearColor(1, 1, 1, 1);
+        glClearColor(1, 1, 1, 1); // TODO: Allow configurable clear color. Also allow clearing on a per-layer basis.
         glClear(GL_COLOR_BUFFER_BIT);
 
         Draw_Constants constants = {};

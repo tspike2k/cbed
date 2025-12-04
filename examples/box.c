@@ -252,6 +252,11 @@ int main(){
 
     Vec3 camera_polar = (Vec3){90, -45, 1}; // TODO: Make these in radian eventually
 
+    {
+        auto m = make_lookat_matrix((Vec3){0, 0, -20}, (Vec3){0, 20, 0}, (Vec3){0, 1, 0});
+        int i =42;
+    }
+
     float t = 0;
 
     f32 dt = 2.0f; // TODO: Actually do frame timing.
@@ -292,14 +297,15 @@ int main(){
         camera.center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
         camera.facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
         camera.view = camera_view_from_polar(camera_polar, cube_pos, (Vec3){0, 1, 0});
-        /*camera.view.mat = mat4_rot_x(t*(PI/180.0f));*/
-        /*camera.view.mat = Mat4_Identity;*/
-        /*camera.view.inv = invert_view_matrix(camera.view.mat);*/
+        // Center the camera by translating by half the camera size in world coordinates
+        // (here they're the same as screen coordinates).
+        camera.view.mat = mat4_mul(mat4_translate(v3_muls(screen_center, 1)), camera.view.mat);
+        camera.view.inv = invert_view_matrix(camera.view.mat);
 
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
 
-        Mat4 scale = mat4_scale((Vec3){100, 100, 100});
+        Mat4 scale = mat4_scale((Vec3){100, 200, 100});
         Mat4 xform = mat4_mul(mat4_translate(cube_pos), scale);
         draw_set_shader_3D();
         draw_set_camera(&camera);

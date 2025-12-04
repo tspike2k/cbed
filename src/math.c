@@ -92,6 +92,7 @@ Vec3 v3_div(Vec3 a, Vec3 b){
     Vec3 result = {
         Vec_OP(x, /),
         Vec_OP(y, /),
+        Vec_OP(z, /),
     };
     return result;
 }
