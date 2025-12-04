@@ -235,10 +235,10 @@ Draw_Vertex cube_mesh[3*12] = {
     },
 };
 
-static void set_world_projection(Camera* camera, float width, float height){
+static void set_world_projection(Camera* camera, float width, float height, float z_near, float z_far){
     Vec2 camera_extents = {width*0.5f, height*0.5f};
     Rect camera_bounds = {camera_extents, camera_extents};
-    camera->proj = orthographic_projection(camera_bounds, -1000, 1000);
+    camera->proj = orthographic_projection(camera_bounds, z_near, z_far);
 }
 
 int main(){
@@ -289,7 +289,9 @@ int main(){
         t += dt;
 
         Camera camera = {};
-        set_world_projection(&camera, display.window_width, display.window_height);
+        float z_near = -1000.0f;
+        float z_far =   1000.0f;
+        set_world_projection(&camera, display.window_width, display.window_height, z_near, z_far);
         camera.center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
         camera.facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
         camera.view = camera_view_from_polar(camera_polar, cube_pos, (Vec3){0, 1, 0});
@@ -300,6 +302,7 @@ int main(){
 
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
+        draw_set_culling(z_near, z_far);
 
         Mat4 scale = mat4_scale((Vec3){100, 200, 100});
         Mat4 xform = mat4_mul(mat4_translate(cube_pos), scale);

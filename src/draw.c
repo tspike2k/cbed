@@ -26,6 +26,7 @@ enum{
     Draw_Cmd_Type_Quad,
     Draw_Cmd_Type_Vertices,
     Draw_Cmd_Type_Set_Shader,
+    Draw_Cmd_Type_Set_Culling,
 };
 
 typedef struct Draw_Cmd Draw_Cmd;
@@ -56,8 +57,15 @@ typedef struct{
     Draw_Shader shader;
 } Draw_Cmd_Set_Shader;
 
+enum{
+    Draw_Layer_Flag_Cull = (1 << 0),
+};
+
 typedef struct {
     Camera   *camera;
+    u32       flags;
+    f32       z_near;
+    f32       z_far;
     Draw_Cmd *cmd_first;
     Draw_Cmd *cmd_last;
 } Draw_Layer;
@@ -320,6 +328,13 @@ void draw_set_camera(Camera *camera){
     layer->camera = camera;
 }
 
+void draw_set_culling(float z_near, float z_far){
+    Draw_Layer *layer = draw__get_active_layer();
+    layer->flags |= Draw_Layer_Flag_Cull;
+    layer->z_near = z_near;
+    layer->z_far  = z_far;
+}
+
 //
 // Font
 //
@@ -471,15 +486,28 @@ typedef struct{
     float time;
 } Draw_Constants;
 
-#define Shader_Preamble               \
-"#version 330\n"                      \
-"layout(std140) uniform Constants{\n" \
-"    mat4  mat_camera;\n"             \
-"    mat4  mat_model;\n"              \
-"    mat4  mat_light;\n"              \
-"    vec3  camera_pos;\n"             \
-"    float time;\n"                   \
-"};\n"
+// For some reason, GLSL considers hex literals to be signed integers by default.
+// To do bit manipulation, we either need to cast hex literals to uint or append a.
+// 'u' to the end of the literal. How bizarre.
+#define Shader_Preamble                              \
+"#version 330\n"                                     \
+"layout(std140) uniform Constants{\n"                \
+"    mat4  mat_camera;\n"                            \
+"    mat4  mat_model;\n"                             \
+"    mat4  mat_light;\n"                             \
+"    vec3  camera_pos;\n"                            \
+"    float time;\n"                                  \
+"};\n"                                               \
+"\n"                                                 \
+"vec4 color_from_u32(uint color){\n"                 \
+"    float r = ((color >> 24) & 0xffu) / 255.0;\n"   \
+"    float g = ((color >> 16) & 0xffu) / 255.0;\n"   \
+"    float b = ((color >>  8) & 0xffu) / 255.0;\n"   \
+"    float a = ((color >>  0) & 0xffu) / 255.0;\n"   \
+"    vec4 result = vec4(r, g, b, a);\n"              \
+"    return result;\n"                               \
+"}\n"                                                \
+"\n"
 
 static const char *draw__2d_shader_vert_src =
 Shader_Preamble
@@ -493,14 +521,7 @@ Shader_Preamble
 "\n"
 "void main(){\n"
 "    gl_Position = mat_camera*vec4(v_pos, 1);\n"
-"    // For some reason, GLSL considers hex literals to be signed integers by default.\n"
-"    // To do bit manipulation, we either need to cast hex literals to uint or append a.\n"
-"    // 'u' to the end of the literal. How bizarre.\n"
-"    float r = ((v_color >> 24) & 0xffu) / 255.0;\n"
-"    float g = ((v_color >> 16) & 0xffu) / 255.0;\n"
-"    float b = ((v_color >>  8) & 0xffu) / 255.0;\n"
-"    float a = ((v_color >>  0) & 0xffu) / 255.0;\n"
-"    f_color     = vec4(r, g, b, a);\n"
+"    f_color     = color_from_u32(v_color);\n"
 "    f_uv        = v_uv;\n"
 "}\n";
 
@@ -529,14 +550,7 @@ Shader_Preamble
 "\n"
 "void main(){\n"
 "    gl_Position = mat_camera*mat_model*vec4(v_pos, 1);\n"
-"    // For some reason, GLSL considers hex literals to be signed integers by default.\n"
-"    // To do bit manipulation, we either need to cast hex literals to uint or append a.\n"
-"    // 'u' to the end of the literal. How bizarre.\n"
-"    float r = ((v_color >> 24) & 0xffu) / 255.0;\n"
-"    float g = ((v_color >> 16) & 0xffu) / 255.0;\n"
-"    float b = ((v_color >>  8) & 0xffu) / 255.0;\n"
-"    float a = ((v_color >>  0) & 0xffu) / 255.0;\n"
-"    f_color     = vec4(r, g, b, a);\n"
+"    f_color     = color_from_u32(v_color);\n"
 "    f_uv        = v_uv;\n"
 "}\n";
 
@@ -679,15 +693,6 @@ bool draw_begin(Buffer *memory){
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // Using premultiplied alpha
 
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
-        glFrontFace(GL_CCW);
-
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE);
-        glDepthFunc(GL_LESS);
-        glDepthRange(-1000, 1000);
-
         // According to Casey Muratori (Handmade Hero ep 372), driver vendors realized that
         // state changes through VAOs is actually quite inefficient.  So here, we set one once
         // and forget it.
@@ -808,6 +813,21 @@ void draw_frame_end(){
             camera = layer->camera;
         }
 
+        if(layer->flags & Draw_Layer_Flag_Cull){
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+            glFrontFace(GL_CCW);
+
+            // TODO: Depth testing should be it's own flag set by the user.
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(GL_TRUE);
+            glDepthFunc(GL_LESS);
+            glDepthRange(layer->z_near, layer->z_far);
+        }
+        else{
+            glDisable(GL_CULL_FACE);
+        }
+
         GLuint current_shader = s->common.shader_default_2d;
         glUseProgram(current_shader);
 
@@ -866,26 +886,29 @@ void draw_frame_end(){
 }
 
 Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
-    assert(width > 0 && height > 0);
-    GLint  internal_format = GL_RGBA8; // TODO: Do we care? Can we tell OpenGL we don't care?
-    GLenum source_format   = GL_RGBA;
+    Draw_Texture result = Draw_Texture_Null;
+    if(width && height && pixels){
+        GLint  internal_format = GL_RGBA8; // TODO: Do we care? Can we tell OpenGL we don't care?
+        GLenum source_format   = GL_RGBA;
 
-    GLuint handle = 0;
-    glGenTextures(1, &handle);
-    glBindTexture(GL_TEXTURE_2D, handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, source_format, GL_UNSIGNED_BYTE, pixels);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    /*if(flags & Texture_Flag_Wrap){*/
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    /*}*/
-    /*else{*/
-        /*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);*/
-        /*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);*/
-    /*}*/
+        GLuint handle = 0;
+        glGenTextures(1, &handle);
+        glBindTexture(GL_TEXTURE_2D, handle);
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, source_format, GL_UNSIGNED_BYTE, pixels);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        /*if(flags & Texture_Flag_Wrap){*/
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        /*}*/
+        /*else{*/
+            /*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);*/
+            /*glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);*/
+        /*}*/
 
-    Draw_Texture result = handle;
+        result = handle;
+    }
+
     return result;
 }
 
