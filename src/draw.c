@@ -679,12 +679,14 @@ bool draw_begin(Buffer *memory){
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // Using premultiplied alpha
 
-#if 0
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glFrontFace(GL_CCW);
+
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
         glDepthRange(-1000, 1000);
-#endif
 
         // According to Casey Muratori (Handmade Hero ep 372), driver vendors realized that
         // state changes through VAOs is actually quite inefficient.  So here, we set one once
@@ -763,7 +765,8 @@ void draw_frame_begin(){
         Display_Info info = display_get_info();
         glViewport(0, 0, info.window_width, info.window_height);
         glClearColor(1, 1, 1, 1); // TODO: Allow configurable clear color. Also allow clearing on a per-layer basis.
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClearDepth(1000);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
         Draw_Constants constants = {};
 
