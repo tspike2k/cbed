@@ -200,7 +200,7 @@ Ceabed_API String str(const char* s){
 }
 
 Ceabed_API bool char_is_whitespace(char c){
-    bool result = c == ' ' || (c >= '\t' && c <= 'r');
+    bool result = c == ' ' || (c >= '\t' && c <= '\r');
     return result;
 }
 
