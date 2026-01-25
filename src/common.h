@@ -4,6 +4,13 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
+/*
+To build this library as a shared object, one must define Ceabed_API differently for the shared
+library and the binary that links to it. Here's an example scripts for future reference:
+    gcc $FLAGS -nostdlib -shared ./src/ceabed.c -o ./build/ceabed.so
+    g++ $FLAGS -DCeabed_API='extern "C"' ./src/app.cpp ./build/ceabed.so -o ./build/app $LIBS
+*/
+
 #ifndef CEABED_COMMON_H
 #define CEABED_COMMON_H
 
@@ -26,6 +33,20 @@ typedef float    f32;
 typedef double   f64;
 
 //
+// Useful preprocessor defines
+//
+
+#ifdef __cplusplus
+  #define Ceabed_C_Lib extern "C"
+#else
+  #define Ceabed_C_Lib extern
+#endif
+
+#ifndef Ceabed_API
+#define Ceabed_API
+#endif
+
+//
 // OS compile-time constants
 //
 #ifdef __gnu_linux__
@@ -40,13 +61,10 @@ void ceabed_begin();
 void ceabed_end();
 
 //
-// Strings
+// Misc macros
 //
 
-typedef struct{
-    char*  text;
-    size_t size;
-} String;
+#define for_u32(i, max) for(u32 i = 0; i < (max); i++)
 
 //
 // Buffers
@@ -58,29 +76,53 @@ typedef struct {
     size_t used;
 } Buffer;
 
+#define Scratch_Begin(scratch) size_t scratch_marker = buffer_frame_begin(scratch)
+#define Scratch_End(scratch) buffer_frame_end(scratch, scratch_marker)
+
+Ceabed_API size_t buffer_frame_begin(Buffer *buffer);
+Ceabed_API void   buffer_frame_end(Buffer* buffer, size_t marker);
+
 #define buffer_push_array(T, buffer, count) (T*)buffer_push_bytes(buffer, sizeof(T)*(count))
 #define buffer_push_type(T, buffer) (T*)buffer_push_bytes(buffer, sizeof(T))
-void *buffer_push_bytes(Buffer *buffer, size_t bytes);
+Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes);
 
 #define buffer_write_text(buffer, text, text_size) (char*)buffer_write(buffer, text, text_size)
 #define buffer_write_type(buffer, t) buffer_write(buffer, t, sizeof(*t))
-void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
+Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
+
+#define buffer_read_type(T, buffer) (T*)buffer_read(buffer, sizeof(T))
+#define buffer_read_array(T, buffer, count) (T*)buffer_read(buffer, sizeof(T)*(count))
+Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes);
+
+Ceabed_API void buffer_put(Buffer *buffer, const char *text, size_t text_len);
+Ceabed_API void buffer_null_terminate(Buffer* buffer);
 
 //
-// Scratch memory
+// Strings
 //
 
-#if 0
-#define Scratch_Memory_Size (8*1024*1024)
+typedef struct{
+    char*  text;
+    size_t size;
+} String;
 
-extern Buffer scratch_memory;
-void          scratch_push_frame();
-void          scratch_pop_frame();
-#endif
+Ceabed_API String str(const char* s);
+Ceabed_API bool char_is_whitespace(char c);
+Ceabed_API void str_advance(String *reader);
+Ceabed_API String str_eat_line(String *reader);
+Ceabed_API void str_skip_whitespace(String *reader);
+Ceabed_API bool str_match(String a, String);
+
+// Conversion functions
+Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
 
 //
 // String formatting functions
 //
+
+//String int_to_string(s64 n, u32 base, Buffer* buffer);
+Ceabed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size);
+Ceabed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buffer_size);
 
 typedef struct{
     uint32_t info; // TODO: This should contain both the arg type and an array count. Array count is limited!
@@ -97,11 +139,6 @@ typedef struct{
 // fmt_buffer can't return a value like a normal function. But the caller needs to know
 // how much text was written into the buffer. To simplify that issue, we provide the
 // Fmt_Buffer data type which is passed by pointer to the fmt_buffer macro.
-typedef struct{
-    char*  data;
-    size_t size;
-    size_t used;
-} Fmt_Buffer;
 
 // NOTE: This callback is used internally by the fmt_msg_* functions to copy text to some sort
 // of destination. The default destination is buffered output to stdout. This can be changed
@@ -127,16 +164,27 @@ typedef void (*Fmt_Put_Func)(const char *text, size_t text_count, void *user_dat
     fmt_buffer_raw((s), dest, &fmt__args[0], Array_Len(fmt__args)); \
 }
 
-Fmt_Arg fmt_i(int64_t value);
-Fmt_Arg fmt_cstr(const char *s);
-Fmt_Arg fmt_f(float value);
+Ceabed_API Fmt_Arg fmt_i(int64_t value);
+Ceabed_API Fmt_Arg fmt_cstr(const char *s);
+Ceabed_API Fmt_Arg fmt_f(float value);
 
-void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data);
-void fmt_msg_put(const char* msg, size_t msg_length);
-void fmt_msg_puts(const char* msg);
-void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count);
+Ceabed_API void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data);
+Ceabed_API void fmt_msg_put(const char* msg, size_t msg_length);
+Ceabed_API void fmt_msg_puts(const char* msg);
+Ceabed_API void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count);
 
-Fmt_Buffer fmt_make_buffer(char *buffer, size_t length);
-void fmt_buffer_raw(const char *fmt_string, Fmt_Buffer *buffer, Fmt_Arg *args, size_t args_count);
+Ceabed_API void fmt_buffer_raw(const char *fmt_string, Buffer *buffer, Fmt_Arg *args, size_t args_count);
+
+// NOTE: The following is typically used internally but use can make it easier to write type-safe
+// wrappers in other languages.
+typedef struct{
+    String reader;
+    bool   done;
+    bool   is_spec;
+    u32    arg_index;
+} Fmt_Parser;
+
+Fmt_Parser fmt_parse(const char *fmt_string, size_t fmt_string_len);
+String fmt_parse_next(Fmt_Parser *parser);
 
 #endif // CEABED_COMMON_H

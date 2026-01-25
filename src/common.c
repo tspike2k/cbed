@@ -9,10 +9,12 @@
 #include <string.h> // memcpy
 #include <assert.h>
 
+Ceabed_C_Lib double pow(double x, double y);
+
 static const char *fmt__int_table = "0123456789abcdefxp";
 
-static char fmt__memory[1024];
-Fmt_Buffer  fmt__buffer;
+static char   fmt__memory[1024];
+static Buffer fmt__buffer;
 
 static void        *fmt__msg_dest;
 static Fmt_Put_Func fmt__msg_put;
@@ -25,24 +27,67 @@ enum{
     Fmt_Type_Float,
 };
 
-Fmt_Arg fmt_i(int64_t value){
+Ceabed_API Fmt_Arg fmt_i(int64_t value){
     Fmt_Arg result = {};
     result.info = Fmt_Type_Signed_Integer;
     result.data_int = value;
     return result;
 }
 
-Fmt_Arg fmt_f(float value){
+Ceabed_API Fmt_Arg fmt_f(float value){
     Fmt_Arg result = {};
     result.info = Fmt_Type_Float;
     result.data_float = value;
     return result;
 }
 
-Fmt_Arg fmt_cstr(const char *value){
+Ceabed_API Fmt_Arg fmt_cstr(const char *value){
     Fmt_Arg result = {};
     result.info = Fmt_Type_C_String;
     result.data_cstr = value;
+    return result;
+}
+
+#include <stdio.h> // TODO: Use float conversion functiosn sourced from stb.
+
+Ceabed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size){
+    assert(base <= 16);
+
+    buffer[buffer_size-1] = '0';
+    String result = {&buffer[buffer_size-1], 1};
+
+    for(size_t i = buffer_size; i > 0; i--){
+        if(n == 0) break;
+
+        char c = fmt__int_table[n % base];
+        buffer[i-1] = c;
+        result = (String){&buffer[i-1], buffer_size - i + 1};
+        n /= base;
+    }
+    return result;
+}
+
+Ceabed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buffer_size){
+    assert(buffer_size >= 512);
+
+    // TODO: Use stb_printf for float formatting
+    snprintf(buffer, buffer_size, "%f", f);
+    String result = {buffer, strlen(buffer)};
+
+    // Auto-precision. Snip off trailing zeroes.
+    if(precision == 0 && result.size > 0){
+        size_t cursor = result.size-1;
+        while(cursor > 0){
+            char c    = result.text[cursor];
+            char peek = result.text[cursor-1];
+            if(peek == '.' || c != '0'){
+                break;
+            }
+            cursor--;
+        }
+        result.size = cursor+1;
+    }
+
     return result;
 }
 
@@ -61,44 +106,213 @@ static size_t fmt__s64(char *buffer, size_t buffer_length, int64_t value, uint32
     return cursor;
 }
 
-#include <stdio.h> // TODO: Use float conversion functiosn sourced from stb.
-
 static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
     char temp_buffer[512];
     size_t buffer_size = Array_Len(temp_buffer);
+    String text = {};
+
     switch(arg.info){
         default: assert(0); break;
 
         case Fmt_Type_Signed_Integer:{
             size_t cursor = fmt__s64(&temp_buffer[0], buffer_size, arg.data_int, 10);
-            put(&temp_buffer[cursor], buffer_size - cursor, dest);
+            text = (String){&temp_buffer[cursor], buffer_size - cursor};
         } break;
 
         case Fmt_Type_Float:{
-            snprintf(&temp_buffer[0], buffer_size, "%f", arg.data_float);
-            put(&temp_buffer[0], strlen(&temp_buffer[0]), dest);
+            text = float_to_string(arg.data_float, 0, &temp_buffer[0], buffer_size);
         } break;
 
         case Fmt_Type_C_String:{
             const char* s = arg.data_cstr;
-            put(s, strlen(s), dest);
+            text = (String){(char*)s, strlen(s)};
         } break;
     }
+
+    put(text.text, text.size, dest);
 }
 
-void *buffer_push_bytes(Buffer *buffer, size_t bytes){
-    assert(buffer->used + bytes <= buffer->size);
-    void *result = &buffer->data[buffer->used];
-    memset(result, 0, bytes);
-    buffer->used += bytes;
+Ceabed_API size_t buffer_frame_begin(Buffer *buffer){
+    size_t result = buffer->used;
     return result;
 }
 
-void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
+Ceabed_API void buffer_frame_end(Buffer* buffer, size_t marker){
+    buffer->used = marker;
+}
+
+Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes){
+    void *result = NULL;
+    if(bytes > 0){
+        assert(buffer->used + bytes <= buffer->size);
+        result = &buffer->data[buffer->used];
+        memset(result, 0, bytes);
+        buffer->used += bytes;
+    }
+    return result;
+}
+
+Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
     void *result = buffer_push_bytes(buffer, data_size);
     if(result){
         memcpy(result, data, data_size);
     }
+    return result;
+}
+
+Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes){
+    void *result = NULL;
+    if(buffer->used + bytes <= buffer->size){
+        result = &buffer->data[buffer->used];
+        buffer->used += bytes;
+    }
+    return result;
+}
+
+Ceabed_API void buffer_put(Buffer *buffer, const char* text, size_t text_len){
+    if(text_len){
+        size_t availible = buffer->size - buffer->used;
+        size_t to_copy = text_len < availible ? text_len : availible;
+        memcpy(&buffer->data[buffer->used], text, to_copy);
+        buffer->used += to_copy;
+    }
+}
+
+Ceabed_API void buffer_null_terminate(Buffer* buffer){
+    if(buffer->size > 0){
+        if(buffer->used < buffer->size){
+            buffer->data[buffer->used] = 0;
+            buffer->used++;
+        }
+        else{
+            buffer->data[buffer->used-1] = 0;
+        }
+    }
+}
+
+//
+// Strings
+//
+
+Ceabed_API String str(const char* s){
+    String result = {(char*)s, strlen(s)};
+    return result;
+}
+
+Ceabed_API bool char_is_whitespace(char c){
+    bool result = c == ' ' || (c >= '\t' && c <= 'r');
+    return result;
+}
+
+Ceabed_API void str_advance(String* reader){
+    assert(reader->size);
+    reader->text++;
+    reader->size--;
+}
+
+Ceabed_API String str_eat_line(String *reader){
+    String result = *reader;
+    while(reader->size){
+        if(reader->text[0] == '\n'){
+            result.size = reader->text - result.text;
+            str_advance(reader);
+            break;
+        }
+        else if(reader->size > 1 && reader->text[0] == '\r' && reader->text[1] == '\n'){
+            result.size = reader->text - result.text;
+            str_advance(reader);
+            break;
+        }
+        str_advance(reader);
+    }
+    return result;
+}
+
+Ceabed_API void str_skip_whitespace(String *reader){
+    while(reader->size && char_is_whitespace(reader->text[0])){
+        str_advance(reader);
+    }
+}
+
+Ceabed_API bool str_match(String a, String b){
+    bool result = a.size == b.size;
+    if(a.size == b.size){
+        for(size_t i = 0; i < a.size; i++){
+            if(a.text[i] != b.text[i]){
+                result = false;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+// Conversions
+
+// This function is a slightly edited version of the stb__clex_parse_float function
+// from stb_c_lexer.h by Sean Barrett, et al. The source license used by that library
+// is Public Domain, so this adaptation can be considered to be either in the public domain
+// or the same license used by the rest of the code in this file.
+//
+// TODO: Find out what algorithm this is and what it's limitations are.
+Ceabed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
+    const char *p = str;
+    double value=0;
+    int base=10;
+    int exponent=0;
+
+    bool success = true;
+
+    for(;;){
+        if (*p >= '0' && *p <= '9')
+            value = value*base + (*p++ - '0');
+        else{
+            success = false;
+            break;
+        }
+    }
+
+    if(*p == '.'){
+        double power, addend = 0;
+        ++p;
+        for (power=1; ; power*=base) {
+            if (*p >= '0' && *p <= '9')
+                addend = addend*base + (*p++ - '0');
+            else{
+                success = false;
+                break;
+            }
+        }
+        value += addend / power;
+    }
+    exponent = (*p == 'e' || *p == 'E');
+
+    if (exponent) {
+        int sign = p[1] == '-';
+        unsigned int exponent=0;
+        double power=1;
+        ++p;
+        if (*p == '-' || *p == '+')
+            ++p;
+        while (*p >= '0' && *p <= '9')
+            exponent = exponent*10 + (*p++ - '0');
+        power = pow(10, exponent); // TODO: Use a builtin pow function? Perhaps we can manage that.
+        if (sign)
+            value /= power;
+        else
+            value *= power;
+    }
+
+    *d = value;
+    return success;
+}
+
+Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f){
+    // TODO: It seems there are a wealth of new ideas on how to
+    // https://research.swtch.com/fp
+    f64 d = 0;
+    bool result = str_to_f64(s, s_len, &d);
+    *f = d;
     return result;
 }
 
@@ -139,69 +353,47 @@ static void fmt__default(const char *text, size_t text_count, void *dest){
     }
 }
 
-void ceabed_begin(){
-    fmt__buffer = fmt_make_buffer(&fmt__memory[0], Array_Len(fmt__memory));
+Ceabed_API void ceabed_begin(){
+    fmt__buffer   = (Buffer){(u8*)&fmt__memory[0], Array_Len(fmt__memory)};
     fmt__msg_dest = &fmt__buffer;
     fmt__msg_put  = fmt__default;
 }
 
-void ceabed_end(){
+Ceabed_API void ceabed_end(){
     fmt__msg_put(NULL, 0, fmt__msg_dest); // Flush the buffer.
 }
 
-void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data){
+Ceabed_API void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data){
     fmt__msg_dest = user_data;
     fmt__msg_put = put;
 }
 
-void fmt_msg_put(const char* msg, size_t msg_length){
+Ceabed_API void fmt_msg_put(const char* msg, size_t msg_length){
     fmt__msg_put(msg, msg_length, fmt__msg_dest);
 }
 
-void fmt_msg_puts(const char* msg){
+Ceabed_API void fmt_msg_puts(const char* msg){
     fmt__msg_put(msg, strlen(msg), fmt__msg_dest);
 }
 
-Fmt_Buffer fmt_make_buffer(char *buffer, size_t length){
-    Fmt_Buffer result = {buffer, length};
-    return result;
-}
-
 static void fmt__buffer_put(const char* text, size_t text_count, void *dest){
-    if(text_count){
-        Fmt_Buffer *buffer = (Fmt_Buffer*)dest;
-        size_t availible = buffer->size - buffer->used;
-        size_t to_copy = text_count < availible ? text_count : availible;
-        memcpy(&buffer->data[buffer->used], text, to_copy);
-        buffer->used += to_copy;
-    }
+    buffer_put((Buffer*)dest, text, text_count);
 }
 
-static size_t fmt__read_until(const char* fmt_string, size_t *reader, char delimiter_a, char delimiter_b){
-    size_t start = *reader;
-    char c = fmt_string[*reader];
-    while(c != '\0' && c != delimiter_a && c != delimiter_b){
-        (*reader)++;
-        c = fmt_string[*reader];
-    }
-    return start;
+static void fmt__advance(Fmt_Parser *parser){
+    assert(parser->reader.size > 0);
+    parser->reader.text++;
+    parser->reader.size--;
 }
 
-static bool fmt__parse_spec(const char *fmt_string, size_t *reader, size_t *arg_index){
-    assert(fmt_string[*reader] == '{');
-    (*reader)++;
-    size_t start = fmt__read_until(fmt_string, reader, '}', '\0');
-    size_t len = *reader - start;
-    if(fmt_string[*reader] == '}')
-        (*reader)++;
+static bool fmt__str_to_u32(String text, u32* value){
+    bool success = true;
 
-    bool success = len > 0;
-
-    size_t result = 0;
-    for(size_t i = len; i > 0; i--){
-        char c = fmt_string[start + i-1];
+    *value = 0;
+    for(size_t i = text.size; i > 0; i--){
+        char c = text.text[i-1];
         if(c >= '0' && c <= '9'){
-            result += (c - '0') * fmt__pow(10, len-i);
+            *value += (c - '0') * fmt__pow(10, text.size-i);
         }
         else{
             success = false;
@@ -209,22 +401,71 @@ static bool fmt__parse_spec(const char *fmt_string, size_t *reader, size_t *arg_
         }
     }
 
-    *arg_index = result;
     return success;
 }
 
-void fmt_buffer_raw(const char *fmt_string, Fmt_Buffer *dest, Fmt_Arg* args, size_t args_count){
-    size_t reader = 0;
-    while(fmt_string[reader] != '\0'){
-        size_t start = fmt__read_until(fmt_string, &reader, '{', '\0');
-        fmt__buffer_put(&fmt_string[start], reader - start, dest);
+Fmt_Parser fmt_parse(const char *fmt_string, size_t fmt_string_len){
+    Fmt_Parser parser = {};
+    parser.reader = (String){(char*)fmt_string, fmt_string_len};
+    return parser;
+}
 
-        if(fmt_string[reader] == '{'){
-            size_t arg_index;
-            if(fmt__parse_spec(fmt_string, &reader, &arg_index)
-            && arg_index < args_count){
-                fmt__arg(args[arg_index], fmt__buffer_put, dest);
+static bool fmt__parse_spec(Fmt_Parser *parser, String s){
+    // TODO: For now, we expect the spec text to only contain a single number.
+    // In the futre, if we want to support hex or other format options,
+    // this will need to become more complex.
+    bool success = fmt__str_to_u32(s, &parser->arg_index);
+    return success;
+}
+
+String fmt_parse_next(Fmt_Parser *parser){
+    parser->is_spec = false;
+
+    String result = parser->reader;
+    while(parser->reader.size > 0){
+        char c = parser->reader.text[0];
+        if(c == '{'){
+            if(parser->reader.size > 1 && parser->reader.text[1] != '{'){
+                result.size = parser->reader.text - result.text;
+
+                fmt__advance(parser);
+                String spec_text = parser->reader;
+                while(parser->reader.size > 0){
+                    char head = parser->reader.text[0];
+                    if(head == '}'){
+                        spec_text.size = parser->reader.text - spec_text.text;
+                        fmt__advance(parser);
+                        break;
+                    }
+                    fmt__advance(parser);
+                }
+
+                parser->is_spec = fmt__parse_spec(parser, spec_text);
             }
+            else{
+                fmt__advance(parser);
+                result.size = parser->reader.text - result.text;
+                fmt__advance(parser);
+            }
+
+            break;
+        }
+        fmt__advance(parser);
+    }
+
+    parser->done = parser->reader.size == 0;
+    return result;
+}
+
+Ceabed_API void fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* args, size_t args_count){
+    Fmt_Parser parser = fmt_parse(fmt_string, strlen(fmt_string));
+    while(!parser.done){
+        String text = fmt_parse_next(&parser);
+        if(text.size){
+            fmt__buffer_put(&text.text[0], text.size, dest);
+        }
+        if(parser.is_spec && parser.arg_index < args_count){
+            fmt__arg(args[parser.arg_index], fmt__buffer_put, dest);
         }
     }
     // Null terminate the end of the resulting string.
@@ -232,23 +473,15 @@ void fmt_buffer_raw(const char *fmt_string, Fmt_Buffer *dest, Fmt_Arg* args, siz
     dest->data[term_index] = '\0';
 }
 
-void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count){
-    size_t reader = 0;
-    while(fmt_string[reader] != '\0'){
-        size_t start = fmt__read_until(fmt_string, &reader, '{', '\n');
-
-        fmt__msg_put(&fmt_string[start], reader - start, fmt__msg_dest);
-        if(fmt_string[reader] == '{'){
-            size_t arg_index;
-            if(fmt__parse_spec(fmt_string, &reader, &arg_index)
-            && arg_index < args_count){
-                fmt__arg(args[arg_index], fmt__msg_put, fmt__msg_dest);
-            }
+Ceabed_API void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count){
+    Fmt_Parser parser = fmt_parse(fmt_string, strlen(fmt_string));
+    while(!parser.done){
+        String text = fmt_parse_next(&parser);
+        if(text.size){
+            fmt__msg_put(&text.text[0], text.size, fmt__msg_dest);
         }
-        else if(fmt_string[reader] == '\n'){
-            fmt__msg_put("\n", 1, fmt__msg_dest);
-            fmt__msg_put(NULL, 0, fmt__msg_dest);
-            reader++;
+        if(parser.is_spec && parser.arg_index < args_count){
+            fmt__arg(args[parser.arg_index], fmt__msg_put, fmt__msg_dest);
         }
     }
 }
