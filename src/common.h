@@ -16,7 +16,7 @@ library and the binary that links to it. Here's an example scripts for future re
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stddef.h>
+#include <stddef.h> // size_t
 
 //
 // Common types

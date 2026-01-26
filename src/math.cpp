@@ -1,15 +1,15 @@
 //------------------------------------------------------------------------------
 // Authors:   tspike (github.com/tspike2k)
-// Copyright: Copyright (c) 2025
+// Copyright: Copyright (c) 2026
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_OS_H
-#define CEABED_OS_H
+#include "math.hpp"
 
-#include "common.h"
-
-void os_sleep_ns(u64 nanoseconds);
-uint64_t os_timestamp_ns();
-
-#endif // CEABED_OS_H
+Vec2 operator+(Vec2 l, Vec2 r){
+    Vec2 result = {
+        l.x + r.x,
+        l.y + r.y,
+    };
+    return result;
+}

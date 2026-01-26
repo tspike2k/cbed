@@ -4,8 +4,8 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_ATLAS
-#define CEABED_ATLAS
+#ifndef CEABED_ATLAS_H
+#define CEABED_ATLAS_H
 
 #include "common.h"
 
@@ -34,4 +34,4 @@ typedef struct{
     u32         items_height; // Total height of all items combined
 } Atlas_Packer;
 
-#endif // CEABED_ATLAS
+#endif // CEABED_ATLAS_H

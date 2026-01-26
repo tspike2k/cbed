@@ -4,11 +4,9 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#include "common.h"
 #include "display.h"
-#include "opengl.h"
-#include <stdint.h>
 #include <string.h>
+#include <assert.h>
 
 /*
 TODO:
@@ -17,11 +15,12 @@ TODO:
 
 */
 
-#ifdef __gnu_linux__
+#ifdef OS_Linux
 //------------------------------------------------------------------------------
 // Linux
 //------------------------------------------------------------------------------
 
+#include "opengl.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XInput2.h>
@@ -493,7 +492,7 @@ static bool display__process_event(XEvent *xevt, Event *evt){
 
         case ButtonPress:
         case ButtonRelease:{
-            auto button = &evt->button;
+            Event_Button *button = &evt->button;
 
             button->type = Event_Type_Button;
             button->pressed = xevt->type == ButtonPress;
@@ -518,11 +517,13 @@ static bool display__process_event(XEvent *xevt, Event *evt){
         } break;
 
         case MotionNotify:{
-            auto motion = &evt->mouse_motion;
+            Event_Mouse_Motion *motion = &evt->mouse_motion;
             motion->type = Event_Type_Mouse_Motion;
             // TODO: Find out what motion hints are and if we need them.
+            Xlib_Window *window = &g__display.window;
+
             motion->pixel_x = xevt->xmotion.x;
-            motion->pixel_y = xevt->xmotion.y;
+            motion->pixel_y = window->height - xevt->xmotion.y;
             motion->rel_x = 0;
             motion->rel_y = 0;
 
@@ -774,6 +775,9 @@ static bool display__process_event(XEvent *xevt, Event *evt){
                 case XK_Return:
                     evt->key.id = Key_ID_Enter; break;
 
+                case XK_space:
+                    evt->key.id = Key_ID_Space; break;
+
                 case XK_Delete:
                     evt->key.id = Key_ID_Delete; break;
 
@@ -866,7 +870,7 @@ static bool display__process_event(XEvent *xevt, Event *evt){
     return event_translated;
 }
 
-Display_Backbuffer display_get_sw_backbuffer(){
+Ceabed_API Display_Backbuffer display_get_sw_backbuffer(){
     Display_Backbuffer result = {};
     result.width  = g__display.window.width;
     result.height = g__display.window.height;
@@ -874,9 +878,9 @@ Display_Backbuffer display_get_sw_backbuffer(){
     return result;
 }
 
-void display_flip_backbuffer(){
+Ceabed_API void display_flip_backbuffer(){
     Xlib *s = &g__display;
-    auto window = &s->window;
+    Xlib_Window *window = &s->window;
     if(window->flags & Display_Flag_HW_Rendering){
         glXSwapBuffers(s->display, window->handle);
     }
@@ -889,7 +893,7 @@ void display_flip_backbuffer(){
     }
 }
 
-bool display_next_event(Event *event){
+Ceabed_API bool display_next_event(Event *event){
     // Some translated events need to pass data allocated by Xlib to the caller. This data
     // needs to be freed, but the caller shouldn't have to deal with that (especially since
     // it could be different on other platforms). This is the simplest way to support that.
@@ -903,7 +907,7 @@ bool display_next_event(Event *event){
     }
 
     bool event_translated = false;
-    auto display = s->display;
+    Display *display = s->display;
     while(!event_translated && XEventsQueued(display, QueuedAlready)){
         XEvent xevt;
         XNextEvent(display, &xevt);
@@ -921,7 +925,7 @@ static void display__close_window(Xlib_Window* w){
     }
 }
 
-bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags){
+Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags){
     Xlib *s = &g__display;
 
     ceabed_begin();
@@ -1005,7 +1009,7 @@ bool display_begin(const char *window_title, uint32_t width, uint32_t height, ui
     return true;
 }
 
-void display_end(){
+Ceabed_API void display_end(){
     Xlib * s = &g__display;
 
     if(s->hidden_cursor_pixmap){
@@ -1025,11 +1029,11 @@ void display_end(){
     ceabed_end();
 }
 
-void display_end_frame(){
+Ceabed_API void display_end_frame(){
     XFlush(g__display.display);
 }
 
-Display_Info display_get_info(){
+Ceabed_API Display_Info display_get_info(){
     Xlib_Window *window = &g__display.window;
     Display_Info result = {};
     result.window_flags  = window->flags;

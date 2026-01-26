@@ -7,9 +7,7 @@
 #ifndef CEABED_DISPLAY_H
 #define CEABED_DISPLAY_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <assert.h>
+#include "common.h"
 
 enum{
     Display_Flag_HW_Rendering = (1 << 0),
@@ -77,6 +75,7 @@ enum{
     Key_ID_Arrow_Right,
     Key_ID_Enter,
     Key_ID_Escape,
+    Key_ID_Space,
     Key_ID_Delete,
     Key_ID_Backspace,
 };
@@ -163,12 +162,12 @@ typedef struct{
     uint32_t window_height;
 } Display_Info;
 
-bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags);
-void display_end();
-Display_Backbuffer display_get_sw_backbuffer();
-void display_flip_backbuffer();
-Display_Info display_get_info();
-bool display_next_event(Event *event);
-void display_end_frame();
+Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags);
+Ceabed_API void display_end();
+Ceabed_API Display_Backbuffer display_get_sw_backbuffer();
+Ceabed_API void display_flip_backbuffer();
+Ceabed_API Display_Info display_get_info();
+Ceabed_API bool display_next_event(Event *event);
+Ceabed_API void display_end_frame();
 
 #endif // CEABED_DISPLAY_H

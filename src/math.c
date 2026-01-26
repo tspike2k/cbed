@@ -12,6 +12,13 @@ void clampf(f32 *value, f32 min_val, f32 max_val){
 
 #define Vec_OP(c, op) (a.c op b.c)
 
+Vec2 v2(f32 x, f32 y){
+    Vec2 result = {
+        x, y
+    };
+    return result;
+}
+
 Vec2 v2_sub(Vec2 a, Vec2 b){
     Vec2 result = {
         Vec_OP(x, -),
@@ -192,6 +199,11 @@ float lerp(float start, float end, float t){
     return result;
 }
 
+Vec4 v4(f32 x, f32 y, f32 z, f32 w){
+    Vec4 result = {{x, y, z, w}};
+    return result;
+}
+
 Vec4 v4_lerp(Vec4 a, Vec4 b, float t){
     Vec4 result = {{
         lerp(a.x, b.x, t),
@@ -226,12 +238,23 @@ Vec2 rect_max(Rect r){
     return result;
 }
 
-Mat4 Mat4_Identity = {{
-    {1, 0, 0, 0},
-    {0, 1, 0, 0},
-    {0, 0, 1, 0},
-    {0, 0, 0, 1},
-}};
+float rect_width(Rect r){
+    float result = r.extents.x*2.0f;
+    return result;
+}
+
+float rect_height(Rect r){
+    float result = r.extents.y*2.0f;
+    return result;
+}
+
+bool is_point_inside_rect(Vec2 p, Rect r){
+    Vec2 r_min = rect_min(r);
+    Vec2 r_max = rect_max(r);
+    bool result = p.x > r_min.x && p.x < r_max.x
+               && p.y > r_min.y && p.y < r_max.y;
+    return result;
+}
 
 Mat4 mat4_mul(Mat4 a, Mat4 b){
     Mat4 result;
@@ -256,6 +279,18 @@ Mat4 mat4_mul(Mat4 a, Mat4 b){
 #undef Mat4_OP
 
     return result;
+}
+
+Vec4 mat4_mul_v4(Mat4 a, Vec4 v){
+#define Mat4_OP(r) a.m[r][0]*v.x + a.m[r][1]*v.y + a.m[r][2]*v.z + a.m[r][3]*v.w
+    Vec4 result;
+    result.x = Mat4_OP(0);
+    result.y = Mat4_OP(1);
+    result.z = Mat4_OP(2);
+    result.w = Mat4_OP(3);
+
+    return result;
+#undef Mat4_OP
 }
 
 Mat4 mat4_transpose(Mat4 a){
@@ -369,6 +404,12 @@ u32 premultiply_alpha(u32 c){
                 | (u32)(fr * 255.0f + 0.5f);
     return result;
 }
+
+float deg_to_rad(float degrees){
+    float result = degrees*(PI/180.0f);
+    return result;
+}
+
 
 Vec3 polar_to_world(Vec3 polar, Vec3 target_pos){
     float phi   = polar.x * (PI/180.0f);
