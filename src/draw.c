@@ -27,13 +27,14 @@ enum{
     Draw_Cmd_Type_Vertices,
     Draw_Cmd_Type_Set_Shader,
     Draw_Cmd_Type_Set_Culling,
+    Draw_Cmd_Type_Circle,
 };
 
 typedef struct Draw_Cmd Draw_Cmd;
 
 #define Draw_Cmd_Fields \
     Draw_Cmd *next;     \
-    u32       type;
+    u32       type
 
 struct Draw_Cmd{
     Draw_Cmd_Fields;
@@ -56,6 +57,13 @@ typedef struct{
     Draw_Cmd_Fields;
     Draw_Shader shader;
 } Draw_Cmd_Set_Shader;
+
+typedef struct{
+    Draw_Cmd_Fields;
+    Vec2  center;
+    float radius;
+    u32   color;
+} Draw_Cmd_Circle;
 
 enum{
     Draw_Layer_Flag_Cull = (1 << 0),
@@ -103,7 +111,49 @@ static Draw_Cmd *draw__push_command(Draw_Layer *layer, u32 cmd_type, u32 cmd_siz
     return cmd;
 }
 
-Draw_XForm orthographic_projection(Rect bounds, float n, float f){
+Ceabed_API Camera *draw_get_default_camera(){
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
+    Camera *result = &s->default_camera;
+    return result;
+}
+
+Ceabed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, float screen_h){
+    Mat4 mat = mat4_mul(camera->proj.mat, camera->view.mat); // TODO: Precompute this?
+    Vec4 p = mat4_mul_v4(mat, v4(world_p.x, world_p.y, world_p.z, 1));
+    Vec2 ndc = v2(p.x/p.w, p.y/p.w);
+    Vec2 n = v2((ndc.x + 1.0f)/2.0f, (ndc.y + 1.0f)/2.0f);
+    Vec2 result = v2(n.x * screen_w, n.y*screen_h);
+    return result;
+}
+
+Ceabed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, float screen_h){
+    // Based on the following source:
+    // https://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-a-physics-library/
+    //
+    // Other sources on this topic that were helpful in figuring out how to do this:
+    // https://antongerdelan.net/opengl/raycasting.html
+    // https://stackoverflow.com/questions/45882951/mouse-picking-miss/45883624#45883624
+    // https://stackoverflow.com/questions/46749675/opengl-mouse-coordinates-to-space-coordinates/46752492#46752492
+    // https://guide.handmadehero.org/code/day373/#2978
+    // https://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-a-physics-library/
+    // https://www.reddit.com/r/gamemaker/comments/c6684w/3d_converting_a_screenspace_mouse_position_into_a/
+    Vec4 ndc = v4(
+        2.0f*(screen_p.x / screen_w) - 1.0f,
+        2.0f*(screen_p.y / screen_h) - 1.0f,
+        -1.0f,
+        1.0f
+    );
+
+    Vec4 camera_p = mat4_mul_v4(camera->proj.inv, ndc);
+    camera_p = v4(camera_p.x / camera_p.w, camera_p.y / camera_p.w, camera_p.z / camera_p.w, camera_p.w);
+    Vec4 world_p = mat4_mul_v4(camera->view.inv, camera_p);
+    world_p = v4(world_p.x / world_p.w, world_p.y / world_p.w, world_p.z / world_p.w, world_p.w);
+    Vec3 result = (Vec3){world_p.x, world_p.y, world_p.z};
+
+    return result;
+}
+
+Ceabed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     // Orthographic adapted from here:
     // https://songho.ca/opengl/gl_projectionmatrix.html#ortho
     // https://en.wikipedia.org/wiki/Orthographic_projection
@@ -129,7 +179,7 @@ Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     return result;
 }
 
-Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up){
+Ceabed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up){
     Draw_XForm result;
     Vec3 camera_world = polar_to_world(camera_polar, camera_target);
     result.mat = make_lookat_matrix(camera_world, camera_target, up);
@@ -138,7 +188,7 @@ Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up
     return result;
 }
 
-Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
+Ceabed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     Vec3 look_dir = v3_normalize(v3_sub(look_pos, camera_pos));
     Vec3 up_dir   = up_pos;
 
@@ -157,7 +207,7 @@ Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     return result;
 }
 
-Mat4 invert_view_matrix(Mat4 view){
+Ceabed_API Mat4 invert_view_matrix(Mat4 view){
     // IMPORTANT: Inverting a view matrix this way only works if no non-uniform rotation has been
     // applied.
 
@@ -179,7 +229,7 @@ Mat4 invert_view_matrix(Mat4 view){
     return result;
 }
 
-Rect calc_scaling_viewport(float res_x, float res_y, float window_w, float window_h){
+Ceabed_API Rect calc_scaling_viewport(float res_x, float res_y, float window_w, float window_h){
     // TODO(tspike) Investigate why there's a vertical stripe of non-rendered pixels on the right side of the screen when
     // in fullcreen mode in X11 (on my laptop). Floating point precision issues? Do we need to clamp?
 
@@ -205,25 +255,19 @@ Rect calc_scaling_viewport(float res_x, float res_y, float window_w, float windo
     return result;
 }
 
-u32 draw_set_layer(u32 layer_index){
+Ceabed_API u32 draw_set_layer(u32 layer_index){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     u32 result = s->layer_index;
     s->layer_index = layer_index;
     return result;
 }
 
-static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
-    Vec2 r_min = rect_min(bounds);
-    Vec2 r_max = rect_max(bounds);
+static void draw__set_quad_points(Draw_Vertex* v, Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3, u32 color, Rect uvs){
+    assert(Draw__Vertex_Per_Quad == 6);
+
     Vec2 uv_min = rect_min(uvs);
     Vec2 uv_max = rect_max(uvs);
 
-    Vec3 p0 = {r_max.x, r_max.y}; // Top-right
-    Vec3 p1 = {r_min.x, r_max.y}; // Top-left
-    Vec3 p2 = {r_min.x, r_min.y}; // Bottom-left
-    Vec3 p3 = {r_max.x, r_min.y}; // Bottom-right
-
-    assert(Draw__Vertex_Per_Quad == 6);
     v[0].pos = p0;
     v[0].color = color;
     v[0].uv   = (Vec2){uv_max.x, uv_min.y};
@@ -245,6 +289,18 @@ static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
     v[5].uv   = (Vec2){uv_max.x, uv_max.y};
 }
 
+static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
+    Vec2 r_min = rect_min(bounds);
+    Vec2 r_max = rect_max(bounds);
+
+    Vec3 p0 = {r_max.x, r_max.y}; // Top-right
+    Vec3 p1 = {r_min.x, r_max.y}; // Top-left
+    Vec3 p2 = {r_min.x, r_min.y}; // Bottom-left
+    Vec3 p3 = {r_max.x, r_min.y}; // Bottom-right
+
+    draw__set_quad_points(v, p0, p1, p2, p3, color, uvs);
+}
+
 static Draw_Vertex *draw__add_quad_cmd(Draw_Layer* layer, Draw_Texture texture, size_t vertex_count){
     Draw_Cmd_Quad *cmd = (Draw_Cmd_Quad *)draw__push_command(layer, Draw_Cmd_Type_Quad, sizeof(Draw_Cmd_Quad) + sizeof(Draw_Vertex)*vertex_count);
     cmd->texture = texture;
@@ -253,19 +309,40 @@ static Draw_Vertex *draw__add_quad_cmd(Draw_Layer* layer, Draw_Texture texture, 
     return result;
 }
 
-void draw_rect_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
+Ceabed_API void draw_rect_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Vertex *v = draw__add_quad_cmd(layer, texture, Draw__Vertex_Per_Quad);
     draw__set_quad(v, r, color, uvs);
 }
 
-void draw_rect(Rect r, u32 color){
+Ceabed_API void draw_rect(Rect r, u32 color){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});
     draw_rect_textured(r, color, s->blank_texture, uvs);
 }
 
-void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
+Ceabed_API void draw_circle(Vec2 center, float radius, u32 color){
+    Draw_Layer *layer = draw__get_active_layer();
+    Draw_Cmd_Circle *cmd = (Draw_Cmd_Circle*)draw__push_command(layer, Draw_Cmd_Type_Circle, sizeof(Draw_Cmd_Circle));
+    cmd->center = center;
+    cmd->radius = radius;
+    cmd->color = color;
+}
+
+Ceabed_API void draw_rect_outline(Rect r, u32 color, float border){
+    float b = border*0.5f;
+    Rect right  = {v2(r.center.x + r.extents.x - b, r.center.y), v2(b, r.extents.y)};
+    Rect left   = {v2(r.center.x - r.extents.x + b, r.center.y), v2(b, r.extents.y)};
+    Rect top    = {v2(r.center.x, r.center.y + r.extents.y - b), v2(r.extents.x, b)};
+    Rect bottom = {v2(r.center.x, r.center.y - r.extents.y + b), v2(r.extents.x, b)};
+
+    draw_rect(right, color);
+    draw_rect(top, color);
+    draw_rect(left, color);
+    draw_rect(bottom, color);
+}
+
+Ceabed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)draw__push_command(layer, Draw_Cmd_Type_Vertices, sizeof(Draw_Cmd_Vertices));
     cmd->xform = xform;
@@ -273,7 +350,7 @@ void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
     cmd->vertices_count = vertex_count;
 }
 
-void draw_set_shader_3D(){
+Ceabed_API void draw_set_shader_3D(){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)draw__push_command(
@@ -282,7 +359,7 @@ void draw_set_shader_3D(){
     cmd->shader = s->shader_default_3d;
 }
 
-void draw_set_shader_2D(){
+Ceabed_API void draw_set_shader_2D(){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)draw__push_command(
@@ -291,7 +368,7 @@ void draw_set_shader_2D(){
     cmd->shader = s->shader_default_2d;
 }
 
-void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
+Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
     if(font->glyphs_count == 0) return;
 
     // TODO: Some of these characters won't be rendered (such as space).
@@ -323,12 +400,35 @@ void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t te
     }
 }
 
-void draw_set_camera(Camera *camera){
+static Vec3 v2_to_v3(Vec2 p){
+    Vec3 result = {p.x, p.y, 0};
+    return result;
+}
+
+Ceabed_API void draw_2d_line(Vec2 start, Vec2 end, u32 color, f32 thickness){
+    Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});
+
+    Vec2 diff = v2_sub(start, end);
+    Vec2 normal = v2_normalize(v2(-diff.y, diff.x));
+    float extents = thickness*0.5f;
+
+    Vec2 p0 = v2_add(end,   v2_muls(normal, -extents));
+    Vec2 p1 = v2_add(start, v2_muls(normal, -extents));
+    Vec2 p2 = v2_add(start, v2_muls(normal, extents));
+    Vec2 p3 = v2_add(end,   v2_muls(normal, extents));
+
+    Draw_State_Common *s = (Draw_State_Common*)&draw__state;
+    Draw_Layer *layer = draw__get_active_layer();
+    Draw_Vertex *v = draw__add_quad_cmd(layer, s->blank_texture, Draw__Vertex_Per_Quad);
+    draw__set_quad_points(v, v2_to_v3(p0), v2_to_v3(p1), v2_to_v3(p2), v2_to_v3(p3), color, uvs);
+}
+
+Ceabed_API void draw_set_camera(Camera *camera){
     Draw_Layer *layer = draw__get_active_layer();
     layer->camera = camera;
 }
 
-void draw_set_culling(float z_near, float z_far){
+Ceabed_API void draw_set_culling(float z_near, float z_far){
     Draw_Layer *layer = draw__get_active_layer();
     layer->flags |= Draw_Layer_Flag_Cull;
     layer->z_near = z_near;
@@ -339,7 +439,7 @@ void draw_set_culling(float z_near, float z_far){
 // Font
 //
 
-Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
+Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
     Font_Glyph* result = &font->null_glyph;
     for(u32 i = 0; i < font->glyphs_count; i++){
         if(font->glyph_codepoints[i] == codepoint){
@@ -350,7 +450,7 @@ Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
     return result;
 }
 
-float font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
+Ceabed_API float font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
     float result = 0;
     for(u32 i = 0; i < font->kerning_pairs_count; i++){
         Font_Kerning *entry = &font->kerning_pairs[i];
@@ -375,7 +475,7 @@ static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
     return result;
 }
 
-bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size){
+Ceabed_API bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size){
     Buffer buffer = {memory, memory_size};
     bool error = false;
     font->texture = Draw_Texture_Null;
@@ -677,12 +777,26 @@ void destroy_shader(Shader* shader){
 }
 #endif
 
-bool draw_begin(Buffer *memory){
+Ceabed_API bool draw_begin(Buffer *memory){
     Draw_State *s = &draw__state;
 
     Display_Info info = display_get_info();
     s->common.hw_rendering = info.window_flags & Display_Flag_HW_Rendering;
     s->common.memory = memory;
+
+    {
+        // Set the default camera. This is an orthographic camera set to the window size.
+        // This would work best for 2D applications and HUD elements.
+        Vec2 window_extents = v2_muls((Vec2){info.window_width, info.window_height}, 0.5f);
+        Rect window_bounds  = {window_extents, window_extents};
+
+        Camera *camera = &s->common.default_camera;
+        camera->proj = orthographic_projection(window_bounds, -100, 100);
+        camera->view.mat = Mat4_Identity;
+        camera->view.inv = invert_view_matrix(Mat4_Identity);
+        camera->center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
+        camera->facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
+    }
 
     bool success = true;
     if(s->common.hw_rendering){
@@ -756,15 +870,18 @@ bool draw_begin(Buffer *memory){
         for(u32 i = 0; i < Draw_Layer_Total; i++){
             layers[i].camera = &s->common.default_camera;
         }
+
+        glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
+        /*glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Draw_Constants), &constants);*/
     }
     return success;
 }
 
-void draw_end(){
+Ceabed_API void draw_end(){
 
 }
 
-void draw_frame_begin(){
+Ceabed_API void draw_frame_begin(){
     Draw_State *s = &draw__state;
     if(s->common.hw_rendering){
         Display_Info info = display_get_info();
@@ -772,23 +889,6 @@ void draw_frame_begin(){
         glClearColor(1, 1, 1, 1); // TODO: Allow configurable clear color. Also allow clearing on a per-layer basis.
         glClearDepth(1000);
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-
-        Draw_Constants constants = {};
-
-        // Set the default camera. This is an orthographic camera set to the window size.
-        // This would work best for 2D applications and HUD elements.
-        Vec2 window_extents = v2_muls((Vec2){info.window_width, info.window_height}, 0.5f);
-        Rect window_bounds  = {window_extents, window_extents};
-
-        Camera *camera = &s->common.default_camera;
-        camera->proj = orthographic_projection(window_bounds, -100, 100);
-        camera->view.mat = Mat4_Identity;
-        camera->view.inv = invert_view_matrix(Mat4_Identity);
-        camera->center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
-        camera->facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
-
-        glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(constants), &constants);
     }
 }
 
@@ -800,7 +900,7 @@ static void draw__shader_set_camera(Draw_State* s, Camera* camera){
     );
 }
 
-void draw_frame_end(){
+Ceabed_API void draw_frame_end(){
     Draw_State *s = &draw__state;
     Camera* camera = &s->common.default_camera;
 
@@ -865,7 +965,7 @@ void draw_frame_end(){
                 case Draw_Cmd_Type_Vertices:{
                     Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)cmd_base;
 
-                    auto x_form = mat4_transpose(cmd->xform);
+                    Mat4 x_form = mat4_transpose(cmd->xform);
                     glBindBuffer(GL_UNIFORM_BUFFER, s->constants_ubo);
                     glBufferSubData(
                         GL_UNIFORM_BUFFER, Offset_Of(Draw_Constants, mat_model),
@@ -876,6 +976,38 @@ void draw_frame_end(){
                     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(cmd->vertices_count*sizeof(Draw_Vertex)), cmd->vertices, GL_DYNAMIC_DRAW);
                     glDrawArrays(GL_TRIANGLES, 0, (u32)cmd->vertices_count);
                 } break;
+
+                case Draw_Cmd_Type_Circle:{
+                    Draw_Cmd_Circle *cmd = (Draw_Cmd_Circle*)cmd_base;
+
+                    Buffer *memory = s->common.memory;
+                    size_t frame = buffer_frame_begin(memory);
+
+                    u32 points = 64+1;
+                    Draw_Vertex *vertices = buffer_push_array(Draw_Vertex, memory, points);
+                    f32 segment_size = TAU/(f32)(points-2);
+
+                    Vec3 center = v2_to_v3(cmd->center);
+                    vertices[0].pos   = center;
+                    vertices[0].color = cmd->color;
+                    for(u32 i = 1; i < points; i++){
+                        Draw_Vertex *v = &vertices[i];
+
+                        Vec3 offset = {
+                            cos((segment_size*(f32)i))*cmd->radius,
+                            sin((segment_size*(f32)i))*cmd->radius,
+                            0
+                        };
+                        v->pos = v3_add(center, offset);
+                        v->color = cmd->color;
+                    }
+
+                    glBindBuffer(GL_ARRAY_BUFFER, s->quad_vbo);
+                    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(points*sizeof(Draw_Vertex)), vertices, GL_DYNAMIC_DRAW);
+                    glDrawArrays(GL_TRIANGLE_FAN, 0, (u32)points);
+
+                    buffer_frame_end(memory, frame);
+                } break;
             }
             cmd_base = cmd_base->next;
         }
@@ -885,7 +1017,7 @@ void draw_frame_end(){
     }
 }
 
-Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
+Ceabed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
     Draw_Texture result = Draw_Texture_Null;
     if(width && height && pixels){
         GLint  internal_format = GL_RGBA8; // TODO: Do we care? Can we tell OpenGL we don't care?
@@ -912,7 +1044,7 @@ Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
     return result;
 }
 
-void draw_destroy_texture(Draw_Texture *texture){
+Ceabed_API void draw_destroy_texture(Draw_Texture *texture){
     GLuint t = (GLuint)*texture;
     glDeleteTextures(1, &t);
     *texture = Draw_Texture_Null;

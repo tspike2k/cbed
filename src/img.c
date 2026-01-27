@@ -136,7 +136,7 @@ Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data
     return result;
 }
 
-Ceabed_API Img_Pixels img_load_tga_from_file(const char* file_name, Buffer* dest, Buffer *scratch){
+Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *scratch){
     Scratch_Begin(scratch);
 
     Img_Pixels result = {};

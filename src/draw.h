@@ -12,14 +12,14 @@
 // character in the string. This would complicate the internals, but simplify the API.
 // Perhaps it's worth it?
 
-#include <stdint.h>
-#include <stddef.h>
+#include "common.h"
 #include "math.h"
 
 // User configures the values between Draw_Layer_None and Draw_Layer_Total
 enum{
     Draw_Layer_None,
     Draw_Layer_World,
+    Draw_Layer_HUD,
     Draw_Layer_Total,
 };
 
@@ -46,25 +46,35 @@ typedef struct {
     u32 color;
 } Draw_Vertex;
 
-Mat4 invert_view_matrix(Mat4 view);
-Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos);
-Draw_XForm orthographic_projection(Rect bounds, float n, float f);
-Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up);
+Ceabed_API Camera *draw_get_default_camera();
+Ceabed_API void draw_set_camera(Camera* camera);
+Ceabed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, float screen_h);
+Ceabed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, float screen_h);
 
-bool draw_begin(Buffer *memory);
-void draw_end();
-void draw_frame_begin();
-void draw_frame_end();
-void draw_rect(Rect r, u32 color);
-void draw_rect_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
-void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count);
+Ceabed_API Mat4 invert_view_matrix(Mat4 view);
+Ceabed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos);
+Ceabed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f);
+Ceabed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up);
+
+Ceabed_API bool draw_begin(Buffer *memory);
+Ceabed_API void draw_end();
+Ceabed_API void draw_frame_begin();
+Ceabed_API void draw_frame_end();
+Ceabed_API u32  draw_set_layer(u32 layer_index);
+
+Ceabed_API void draw_rect(Rect r, u32 color);
+Ceabed_API void draw_rect_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
+Ceabed_API void draw_rect_outline(Rect r, u32 color, float border);
+Ceabed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count);
+Ceabed_API void draw_2d_line(Vec2 p0, Vec2 p1, u32 color, f32 thickness);
+Ceabed_API void draw_circle(Vec2 center, float radius, u32 color);
 
 // Default shaders
-void draw_set_shader_3D();
-void draw_set_shader_2D();
+Ceabed_API void draw_set_shader_3D();
+Ceabed_API void draw_set_shader_2D();
 
-Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
-void draw_destroy_texture(Draw_Texture *texture);
+Ceabed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
+Ceabed_API void draw_destroy_texture(Draw_Texture *texture);
 
 //
 // Fonts
@@ -143,8 +153,9 @@ typedef struct {
     uint32_t size;
 } Font_Section;
 
-bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size);
-Font_Glyph* font_get_glyph(Font* font, uint32_t codepoint);
-float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint);
+Ceabed_API bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size);
+Ceabed_API Font_Glyph* font_get_glyph(Font* font, uint32_t codepoint);
+Ceabed_API float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint);
+Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len);
 
 #endif // CEABED_DRAW_H

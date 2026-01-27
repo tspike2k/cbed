@@ -31,7 +31,7 @@ int main(){
     g_pixels[1 + 1 * Pixels_W] = 0xffffffff;
 
     img_save_tga("test.tga", Pixels_W, Pixels_H, &g_pixels[0], &scratch);
-    Img_Pixels pixels = img_load_tga_from_file("test.tga", &memory, &scratch);
+    Img_Pixels pixels = img_load_tga("test.tga", &memory, &scratch);
     img_save_tga("test2.tga", pixels.width, pixels.height, pixels.data, &scratch);
 
     ceabed_end();

@@ -19,7 +19,7 @@ typedef struct{
 } Img_Pixels;
 
 Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest);
-Ceabed_API Img_Pixels img_load_tga_from_file(const char* file_name, Buffer* dest, Buffer *scratch);
+Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *scratch);
 Ceabed_API bool img_save_tga(const char* file_name, u32 width, u32 height, u32 *pixels, Buffer *scratch);
 
 #endif // CEABED_IMG_H

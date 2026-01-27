@@ -27,22 +27,22 @@ typedef struct{
 } File;
 
 // NOTE: Read/write operations are done in a blocking mode.
-bool file_open(File *file, const char *file_path, uint32_t flags);
-void file_close(File *file);
-size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size);
-void file_write(File *file, size_t offset, void *buffer, size_t buffer_size);
-size_t file_get_size(File* file);
-void file_delete(const char *file_path);
-size_t file_stream_in(File *file, void *buffer, size_t buffer_size);
-void file_stream_out(File *file, void *buffer, size_t buffer_size);
-bool file_exists(const char *file_path);
+Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags);
+Ceabed_API void file_close(File *file);
+Ceabed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size);
+Ceabed_API void file_write(File *file, size_t offset, void *buffer, size_t buffer_size);
+Ceabed_API size_t file_get_size(File* file);
+Ceabed_API void file_delete(const char *file_path);
+Ceabed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size);
+Ceabed_API void file_stream_out(File *file, void *buffer, size_t buffer_size);
+Ceabed_API bool file_exists(const char *file_path);
 
-void file_write_from_memory(const char *file_name, void *data, size_t size);
-String file_read_into_memory(const char *file_name, Buffer *buffer);
+Ceabed_API void file_write_from_memory(const char *file_name, void *data, size_t size);
+Ceabed_API String file_read_into_memory(const char *file_name, Buffer *buffer);
 
-File file_get_stdin();
-File file_get_stdout();
-File file_get_stderr();
+Ceabed_API File file_get_stdin();
+Ceabed_API File file_get_stdout();
+Ceabed_API File file_get_stderr();
 
 // TODO: Implement directory recursion
 #if 0

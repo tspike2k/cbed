@@ -20,7 +20,7 @@
 #include <string.h>
 #include <errno.h>
 
-bool file_open(File *file, const char *file_path, uint32_t flags){
+Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags){
     uint32_t default_file_permissions = S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH;
 
     int permissions = 0;
@@ -54,7 +54,7 @@ bool file_open(File *file, const char *file_path, uint32_t flags){
     return result;
 }
 
-size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size){
+Ceabed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Read);
 
     int fd = (int)file->handle;
@@ -83,7 +83,7 @@ size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size){
     return bytes_read;
 }
 
-void file_write(File *file, size_t offset, void *buffer, size_t buffer_size){
+Ceabed_API void file_write(File *file, size_t offset, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Write);
 
     int fd = (int)file->handle;
@@ -111,7 +111,7 @@ void file_write(File *file, size_t offset, void *buffer, size_t buffer_size){
     file->cursor = offset + buffer_written;
 }
 
-size_t file_stream_in(File *file, void *buffer, size_t buffer_size){
+Ceabed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Read);
 
     int fd = (int)file->handle;
@@ -139,7 +139,7 @@ size_t file_stream_in(File *file, void *buffer, size_t buffer_size){
     return bytes_read;
 }
 
-void file_stream_out(File *file, void *buffer, size_t buffer_size){
+Ceabed_API void file_stream_out(File *file, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Write);
 
     int fd = (int)file->handle;
@@ -165,14 +165,14 @@ void file_stream_out(File *file, void *buffer, size_t buffer_size){
     }
 }
 
-void file_close(File* file){
+Ceabed_API void file_close(File* file){
     assert(file->flags & File_Flag_Is_Open);
     int fd = (int)file->handle;
     close(fd);
     file->flags = 0;
 }
 
-size_t file_get_size(File* file){
+Ceabed_API size_t file_get_size(File* file){
     int fd = (int)file->handle;
     struct stat s;
     size_t result;
@@ -185,7 +185,7 @@ size_t file_get_size(File* file){
     return result;
 }
 
-void file_write_from_memory(const char *file_name, void *data, size_t size){
+Ceabed_API void file_write_from_memory(const char *file_name, void *data, size_t size){
     File file;
     if(file_open(&file, file_name, File_Flag_Write)){
         file_write(&file, 0, data, size);
@@ -193,7 +193,7 @@ void file_write_from_memory(const char *file_name, void *data, size_t size){
     }
 }
 
-String file_read_into_memory(const char *file_name, Buffer *buffer){
+Ceabed_API String file_read_into_memory(const char *file_name, Buffer *buffer){
     File file;
     String result = {};
     if(file_open(&file, file_name, File_Flag_Read)){
@@ -207,25 +207,25 @@ String file_read_into_memory(const char *file_name, Buffer *buffer){
     return result;
 }
 
-File file_get_stdin(){
+Ceabed_API File file_get_stdin(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Read;
     File result = {flags, 0};
     return result;
 }
 
-File file_get_stdout(){
+Ceabed_API File file_get_stdout(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Write;
     File result = {flags, 1};
     return result;
 }
 
-File file_get_stderr(){
+Ceabed_API File file_get_stderr(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Write;
     File result = {flags, 2};
     return result;
 }
 
-void delete_file(const char *file_path){
+Ceabed_API void delete_file(const char *file_path){
     // TODO: Error handling?
     unlink(file_path);
 }
@@ -233,7 +233,7 @@ void delete_file(const char *file_path){
 // Due to various oddities with POSIX, the most reliable way to test if a file exists is to simply
 // open the file. Both access and stat can give erronous results if the application is being
 // run with the SUID bit set. This seems to be a result of an issue called "TOCTOU."
-bool file_exists(const char *file_path){
+Ceabed_API bool file_exists(const char *file_path){
     bool result = false;
     File file;
     if(file_open(&file, file_path, File_Flag_Read)){
