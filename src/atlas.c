@@ -6,13 +6,13 @@
 
 #include "atlas.h"
 
-Atlas_Packer atlas_packer_begin(Buffer *memory){
+Ceabed_API Atlas_Packer atlas_packer_begin(Buffer *memory){
     Atlas_Packer packer = {};
     packer.memory = memory;
     return packer;
 }
 
-void atlas_packer_add(Atlas_Packer *packer, u32 width, u32 height, void *source){
+Ceabed_API void atlas_packer_add(Atlas_Packer *packer, u32 width, u32 height, void *source){
     Atlas_Node *node = buffer_push_type(Atlas_Node, packer->memory);
 
     node->next = packer->items;
@@ -27,7 +27,7 @@ void atlas_packer_add(Atlas_Packer *packer, u32 width, u32 height, void *source)
     packer->items_height += height;
 }
 
-void atlas_packer_end(Atlas_Packer* packer, u32 padding, bool use_powers_of_two){
+Ceabed_API void atlas_packer_end(Atlas_Packer* packer, u32 padding, bool use_powers_of_two){
     if(packer->items_count == 0) return;
 
     // Using this algorithm, we estimate the desired canvas width and grow the height as

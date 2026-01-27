@@ -57,8 +57,8 @@ typedef double   f64;
 // Common functions
 //
 
-void ceabed_begin();
-void ceabed_end();
+Ceabed_API void ceabed_begin();
+Ceabed_API void ceabed_end();
 
 //
 // Misc macros
@@ -184,7 +184,7 @@ typedef struct{
     u32    arg_index;
 } Fmt_Parser;
 
-Fmt_Parser fmt_parse(const char *fmt_string, size_t fmt_string_len);
-String fmt_parse_next(Fmt_Parser *parser);
+Ceabed_API Fmt_Parser fmt_parse(const char *fmt_string, size_t fmt_string_len);
+Ceabed_API String fmt_parse_next(Fmt_Parser *parser);
 
 #endif // CEABED_COMMON_H

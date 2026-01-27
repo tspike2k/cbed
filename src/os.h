@@ -9,7 +9,7 @@
 
 #include "common.h"
 
-void os_sleep_ns(u64 nanoseconds);
-uint64_t os_timestamp_ns();
+Ceabed_API void os_sleep_ns(u64 nanoseconds);
+Ceabed_API u64  os_timestamp_ns();
 
 #endif // CEABED_OS_H

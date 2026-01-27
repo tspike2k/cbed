@@ -4,18 +4,22 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_IMG
-#define CEABED_IMG
+#ifndef CEABED_IMG_H
+#define CEABED_IMG_H
 
 #include "common.h"
 
+Ceabed_API u32 premultiply_alpha(u32 c);
+Ceabed_API u32 rgba_to_argb(u32 c);
+
 typedef struct{
-    u32 *pixels;
+    u32 *data;
     u32 width;
     u32 height;
 } Img_Pixels;
 
-Img_Pixels img_load_tga(const char* file_name);
-bool       img_save_tga(Buffer *dest, const char* file_name, u32 width, u32 height, u32 *pixels);
+Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest);
+Ceabed_API Img_Pixels img_load_tga_from_file(const char* file_name, Buffer* dest, Buffer *scratch);
+Ceabed_API bool img_save_tga(const char* file_name, u32 width, u32 height, u32 *pixels, Buffer *scratch);
 
-#endif // CEABED_IMG
+#endif // CEABED_IMG_H

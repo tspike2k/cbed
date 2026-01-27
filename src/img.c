@@ -5,7 +5,48 @@
 //------------------------------------------------------------------------------
 
 #include "img.h"
+#include "files.h"
 #include <assert.h>
+
+Ceabed_API u32 premultiply_alpha(u32 c){
+    u8 r = (c) & 0xff;
+    u8 g = (c >> 8) & 0xff;
+    u8 b = (c >> 16) & 0xff;
+    u8 a = (c >> 24) & 0xff;
+
+    float fa = ((float)a / 255.0f);
+    float fr = ((float)r / 255.0f) * fa;
+    float fg = ((float)g / 255.0f) * fa;
+    float fb = ((float)b / 255.0f) * fa;
+
+    u32 result = (u32)(a << 24)
+                | (u32)(fb * 255.0f + 0.5f) << 16
+                | (u32)(fg * 255.0f + 0.5f) << 8
+                | (u32)(fr * 255.0f + 0.5f);
+    return result;
+}
+
+Ceabed_API u32 rgba_to_argb(u32 c){
+    u8 sr = (u8)((c >> 24) & 0xff);
+    u8 sg = (u8)((c >> 16) & 0xff);
+    u8 sb = (u8)((c >>  8) & 0xff);
+    u8 sa = (u8)((c >>  0) & 0xff);
+
+    u32 result = (u32)(sa << 24) | (u32)(sr << 16)
+               | (u32)(sg <<  8) | (u32)(sb <<  0);
+    return result;
+}
+
+Ceabed_API u32 argb_to_rgba(u32 c){
+    u8 sr = (u8)((c >> 16) & 0xff);
+    u8 sg = (u8)((c >>  8) & 0xff);
+    u8 sb = (u8)((c >>  0) & 0xff);
+    u8 sa = (u8)((c >> 24) & 0xff);
+
+    u32 result = (u32)(sa <<  0) | (u32)(sr << 24)
+               | (u32)(sg << 16) | (u32)(sb <<  8);
+    return result;
+}
 
 ////
 //
@@ -39,105 +80,92 @@ typedef struct {
 #pragma pack(pop)
 
 static bool img__tga_is_non_interleaved(TGA_Header* header){
-    auto result = !((header->image_desc) & ((1 << 6) | (1 << 7)));
+    bool result = !((header->image_desc) & ((1 << 6) | (1 << 7)));
     return result;
 }
 
-// TODO: Implement this!
-Img_Pixels img_load_tga(const char* file_name){
+Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest){
     Img_Pixels result = {};
-    assert(0);
+
+    Buffer src = {data, data_size};
+    TGA_Header *header = buffer_read_type(TGA_Header, &src);
+    if(!header){
+        fmt_msg("ERROR: {0} is too short to be a valid TGA file.\n", fmt_cstr(file_name));
+        return result;
+    }
+
+    // TODO: Handle 24-bit pixel data
+    if(header->data_type != TGA_Data_Type_Uncompressed_RGB){
+        fmt_msg("ERROR: Unsupported TGA file for {0}. File must be an uncompressed RGB image.\n", fmt_cstr(file_name));
+        return result;
+    }
+
+    if(header->bits_per_pixel != 32){
+        fmt_msg("ERROR: Unsupported TGA file for {0}. File must be a 32-bit image (got {1}-bit).\n", fmt_cstr(file_name), fmt_i(header->bits_per_pixel));
+        return result;
+    }
+
+    if(!(header->image_desc & TGA_Desc_Upper_Left_Origin)){
+        fmt_msg("ERROR: Unsupported TGA file for {0}. Origin must be at the upper-left.\n", fmt_cstr(file_name));
+        return result;
+    }
+
+    if(!img__tga_is_non_interleaved(header)){
+        fmt_msg("ERROR: Unsupported TGA file for {0}. Pixel data must be non-interleaved.\n", fmt_cstr(file_name));
+        return result;
+    }
+
+
+    u32 width  = header->width;
+    u32 height = header->height;
+    u32 *src_pixels = buffer_read_array(u32, &src, width*height);
+    if(!src_pixels){
+        fmt_msg("ERROR: Unable to read pixel data from TGA file {0}\n", fmt_cstr(file_name));
+        return result;
+    }
+
+    u32 *out_pixels = buffer_push_array(u32, dest, width*height);
+    for(u32 i = 0; i < width*height; i++){
+        out_pixels[i] = argb_to_rgba(src_pixels[i]);
+    }
+
+    result.width  = width;
+    result.height = height;
+    result.data   = out_pixels;
+
     return result;
 }
 
-bool img_save_tga(Buffer *dest, const char* file_name, u32 width, u32 height, u32 *pixels){
-    size_t restore = dest->used;
+Ceabed_API Img_Pixels img_load_tga_from_file(const char* file_name, Buffer* dest, Buffer *scratch){
+    Scratch_Begin(scratch);
 
-    TGA_Header *header     = buffer_push_type(TGA_Header, dest);
+    Img_Pixels result = {};
+    String contents = file_read_into_memory(file_name, scratch);
+    if(contents.size){
+        result = img_load_tga_from_memory(file_name, contents.text, contents.size, dest);
+    }
+
+    Scratch_End(scratch);
+    return result;
+}
+
+Ceabed_API bool img_save_tga(const char* file_name, u32 width, u32 height, u32 *pixels, Buffer *scratch){
+    size_t scratch_frame = buffer_frame_begin(scratch);
+
+    TGA_Header *header     = buffer_push_type(TGA_Header, scratch);
     header->data_type      = TGA_Data_Type_Uncompressed_RGB;
     header->bits_per_pixel = 32;
     header->width          = (s16)width;
     header->height         = (s16)height;
     header->image_desc     = TGA_Desc_Upper_Left_Origin;
 
-        u32 *out_pixels = buffer_push_array(u32, dest, width*height);
-        for(u32 i = 0; i < width*height; i++){
-            auto pixel = &pixels[i];
+    u32 *out_pixels = buffer_push_array(u32, scratch, width*height);
+    for(u32 i = 0; i < width*height; i++){
+        out_pixels[i] = rgba_to_argb(pixels[i]);
+    }
 
-            u8 a = (*pixel >> 24) & 0xff;
-            u8 r = (*pixel >> 16) & 0xff;
-            u8 g = (*pixel >> 8)  & 0xff;
-            u8 b = (*pixel)       & 0xff;
-
-            out_pixels[i] = ((u32)a) << 24 | ((u32)b) << 16
-                      |      ((u32)g) << 8 | ((u32)r);
-        }
-
-    bool result = true; // TODO: Do we have a way to tell if a write succeeds?
-    file_write_from_memory(file_name, &dest->data[restore], dest->used - restore);
-    return result;
-
-    dest->used = restore;
+    bool result = true; // TODO: We should really have a way to tell if a write succeeds or not.
+    file_write_from_memory(file_name, header, scratch->used - scratch_frame);
+    buffer_frame_end(scratch, scratch_frame);
     return result;
 }
-
-
-#if 0
-
-Pixels load_tga_file(String file_name, Allocator *allocator){
-    push_frame(allocator.scratch);
-    scope(exit) pop_frame(allocator.scratch);
-
-    auto file_contents = read_file_into_memory(file_name, allocator.scratch);
-    auto reader = Serializer(file_contents);
-
-    auto header = zero_type!TGA_Header;
-    read(&reader, header);
-
-    Pixels result;
-    // TODO: Handle 24-bit pixel data
-    if(header.data_type != TGA_Data_Type_Uncompressed_RGB){
-        log_error("Unsupported TGA file for {0}. File must be an uncompressed RGB image.\n", file_name);
-        return result;
-    }
-
-    if(header.bits_per_pixel != 32){
-        log_error("Unsupported TGA file for {0}. File must be a 32-bit image (got {1}-bit).\n", file_name, header.bits_per_pixel);
-        return result;
-    }
-
-    if(!(header.image_desc & TGA_Desc_Upper_Left_Origin)){
-        log_error("Unsupported TGA file for {0}. Origin must be at the upper-left.\n", file_name);
-        return result;
-    }
-
-    if(!is_non_interleaved(&header)){
-        log_error("Unsupported TGA file for {0}. Pixel data must be non-interleaved.\n", file_name);
-        return result;
-    }
-
-    uint width  = header.width;
-    uint height = header.height;
-    auto pixels = eat_array!uint(&reader, width*height);
-    if(!pixels.length){
-        log_error("Unable to read pixel data from TGA file {0}\n", file_name);
-        return result;
-    }
-
-    foreach(ref pixel; pixels){
-        u8 a = (pixel >> 24) & 0xff;
-        u8 r = (pixel >> 16) & 0xff;
-        u8 g = (pixel >> 8)  & 0xff;
-        u8 b = (pixel)       & 0xff;
-
-        pixel = (cast(uint)r)       | (cast(uint)g) << 8
-              | (cast(uint)b) << 16 | (cast(uint)a) << 24;
-    }
-
-    result.width  = width;
-    result.height = height;
-    result.data   = dup_array(pixels, allocator);
-
-    return result;
-}
-#endif

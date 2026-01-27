@@ -34,4 +34,8 @@ typedef struct{
     u32         items_height; // Total height of all items combined
 } Atlas_Packer;
 
+Ceabed_API Atlas_Packer atlas_packer_begin(Buffer *memory);
+Ceabed_API void atlas_packer_add(Atlas_Packer *packer, u32 width, u32 height, void *source);
+Ceabed_API void atlas_packer_end(Atlas_Packer* packer, u32 padding, bool use_powers_of_two);
+
 #endif // CEABED_ATLAS_H
