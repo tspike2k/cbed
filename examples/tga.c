@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 
 //
-// A simple example program that shows how to write to TGA files.
+// A simple example program that shows how to save and load TGA files.
 //
 
 #include "common.c"
@@ -25,10 +25,10 @@ int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
     Buffer scratch = {&g_scratch[0], Array_Len(g_scratch)};
 
-    g_pixels[0 + 0 * Pixels_W] = 0xff0000ff;
-    g_pixels[1 + 0 * Pixels_W] = 0x00ff00ff;
-    g_pixels[0 + 1 * Pixels_W] = 0x0000ffff;
-    g_pixels[1 + 1 * Pixels_W] = 0xffffffff;
+    g_pixels[0 + 0 * Pixels_W] = 0xff0000ff; // Red
+    g_pixels[1 + 0 * Pixels_W] = 0xff00ff00; // Green
+    g_pixels[0 + 1 * Pixels_W] = 0x00ff0000; // Blue
+    g_pixels[1 + 1 * Pixels_W] = 0xffffffff; // White
 
     img_save_tga("test.tga", Pixels_W, Pixels_H, &g_pixels[0], &scratch);
     Img_Pixels pixels = img_load_tga("test.tga", &memory, &scratch);

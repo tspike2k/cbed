@@ -26,25 +26,25 @@ Ceabed_API u32 premultiply_alpha(u32 c){
     return result;
 }
 
-Ceabed_API u32 rgba_to_argb(u32 c){
-    u8 sr = (u8)((c >> 24) & 0xff);
-    u8 sg = (u8)((c >> 16) & 0xff);
-    u8 sb = (u8)((c >>  8) & 0xff);
-    u8 sa = (u8)((c >>  0) & 0xff);
-
-    u32 result = (u32)(sa << 24) | (u32)(sr << 16)
-               | (u32)(sg <<  8) | (u32)(sb <<  0);
-    return result;
-}
-
-Ceabed_API u32 argb_to_rgba(u32 c){
+Ceabed_API u32 bgra_to_rgba(u32 c){
     u8 sr = (u8)((c >> 16) & 0xff);
     u8 sg = (u8)((c >>  8) & 0xff);
     u8 sb = (u8)((c >>  0) & 0xff);
     u8 sa = (u8)((c >> 24) & 0xff);
 
-    u32 result = (u32)(sa <<  0) | (u32)(sr << 24)
-               | (u32)(sg << 16) | (u32)(sb <<  8);
+    u32 result = (u32)(sr <<  0) | (u32)(sg <<  8)
+               | (u32)(sb << 16) | (u32)(sa <<  24);
+    return result;
+}
+
+Ceabed_API u32 rgba_to_bgra(u32 c){
+    u8 sr = (u8)((c >>  0) & 0xff);
+    u8 sg = (u8)((c >>  8) & 0xff);
+    u8 sb = (u8)((c >> 16) & 0xff);
+    u8 sa = (u8)((c >> 24) & 0xff);
+
+    u32 result = (u32)(sr << 16) | (u32)(sg <<  8)
+               | (u32)(sb <<  0) | (u32)(sa <<  24);
     return result;
 }
 
@@ -126,7 +126,9 @@ Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data
 
     u32 *out_pixels = buffer_push_array(u32, dest, width*height);
     for(u32 i = 0; i < width*height; i++){
-        out_pixels[i] = argb_to_rgba(src_pixels[i]);
+        out_pixels[i] = bgra_to_rgba(src_pixels[i]);
+        /*out_pixels[i] = argb_to_rgba(src_pixels[i]);*/
+        /*out_pixels[i] = src_pixels[i];*/
     }
 
     result.width  = width;
@@ -161,7 +163,7 @@ Ceabed_API bool img_save_tga(const char* file_name, u32 width, u32 height, u32 *
 
     u32 *out_pixels = buffer_push_array(u32, scratch, width*height);
     for(u32 i = 0; i < width*height; i++){
-        out_pixels[i] = rgba_to_argb(pixels[i]);
+        out_pixels[i] = rgba_to_bgra(pixels[i]);
     }
 
     bool result = true; // TODO: We should really have a way to tell if a write succeeds or not.

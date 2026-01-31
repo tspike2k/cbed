@@ -600,10 +600,10 @@ typedef struct{
 "};\n"                                               \
 "\n"                                                 \
 "vec4 color_from_u32(uint color){\n"                 \
-"    float r = ((color >> 24) & 0xffu) / 255.0;\n"   \
-"    float g = ((color >> 16) & 0xffu) / 255.0;\n"   \
-"    float b = ((color >>  8) & 0xffu) / 255.0;\n"   \
-"    float a = ((color >>  0) & 0xffu) / 255.0;\n"   \
+"    float r = ((color >>  0) & 0xffu) / 255.0;\n"   \
+"    float g = ((color >>  8) & 0xffu) / 255.0;\n"   \
+"    float b = ((color >> 16) & 0xffu) / 255.0;\n"   \
+"    float a = ((color >> 24) & 0xffu) / 255.0;\n"   \
 "    vec4 result = vec4(r, g, b, a);\n"              \
 "    return result;\n"                               \
 "}\n"                                                \

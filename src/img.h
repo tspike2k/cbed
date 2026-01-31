@@ -9,8 +9,10 @@
 
 #include "common.h"
 
-Ceabed_API u32 premultiply_alpha(u32 c);
-Ceabed_API u32 rgba_to_argb(u32 c);
+// Internally, colors are in the 32-bit RGBA LE format. This means hex literals for colors
+// have the following format: 0xAABBGGRR
+Ceabed_API u32 bgra_to_rgba(u32 c);
+Ceabed_API u32 rgba_to_bgra(u32 c);
 
 typedef struct{
     u32 *data;
