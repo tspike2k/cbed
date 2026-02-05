@@ -52,12 +52,12 @@ int main(){
         Display_Info display = display_get_info();
         Vec2 window_center = v2_muls((Vec2){display.window_width, display.window_height}, 0.5f);
 
-        draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){-100, -100}), 200, 200), 0x00ff00ff);
+        draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){-100, -100}), 200, 200), 0xff00ff00);
         draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 200, 200), 0xff0000ff);
-        draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 100, 100), 0xffff00ff);
+        draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 100, 100), 0xff00ffff);
 
         const char *msg = "Hello, world!";
-        draw_text((Vec2){0, 0}, 0xff00ffff, &test_font, msg, strlen(msg));
+        draw_text((Vec2){0, 0}, 0xffff00ff, &test_font, msg, strlen(msg));
 
         draw_frame_end();
 
