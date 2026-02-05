@@ -256,6 +256,15 @@ Ceabed_API bool is_point_inside_rect(Vec2 p, Rect r){
     return result;
 }
 
+Ceabed_API bool rects_overlap(Rect a, Rect b){
+    bool result = a.center.x - a.extents.x < b.center.x + b.extents.x
+        && a.center.x + a.extents.x > b.center.x - b.extents.x
+        && a.center.y - a.extents.y < b.center.y + b.extents.y
+        && a.center.y + a.extents.y > b.center.y - b.extents.y;
+
+    return result;
+}
+
 Ceabed_API Mat4 mat4_mul(Mat4 a, Mat4 b){
     Mat4 result;
 
@@ -406,3 +415,15 @@ Ceabed_API Vec3 polar_to_world(Vec3 polar, Vec3 target_pos){
     Vec3 world_pos = v3_add(target_pos, v3_muls(dir_to_camera, polar.z));
     return world_pos;
 }
+
+#ifdef __cplusplus
+
+Vec2 operator+(Vec2 l, Vec2 r){
+    Vec2 result = {
+        l.x + r.x,
+        l.y + r.y,
+    };
+    return result;
+}
+
+#endif // __cplusplus

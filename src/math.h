@@ -78,6 +78,7 @@ Ceabed_API Vec2 rect_max(Rect r);
 Ceabed_API float rect_width(Rect r);
 Ceabed_API float rect_height(Rect r);
 Ceabed_API bool is_point_inside_rect(Vec2 p, Rect r);
+Ceabed_API bool rects_overlap(Rect a, Rect b);
 
 typedef struct{
     float m[4][4];
@@ -97,5 +98,25 @@ Ceabed_API Mat4 mat4_translate(Vec3 offset);
 Ceabed_API u32 premultiply_alpha(u32 c);
 Ceabed_API float deg_to_rad(float degrees);
 Ceabed_API Vec3 polar_to_world(Vec3 polar, Vec3 target_pos);
+
+#ifdef __cplusplus
+
+template<typename T> T min(T a, T b){
+    T result = MIN(a, b);
+    return result;
+}
+
+template<typename T> T max(T a, T b){
+    T result = MAX(a, b);
+    return result;
+}
+
+template<typename T> void clamp(T* a, T min_val, T max_val){
+    *a = CLAMP(*a, min_val, max_val);
+}
+
+Vec2 operator+(Vec2 l, Vec2 r);
+
+#endif // __cplusplus
 
 #endif // CEABED_MATH_HPP
