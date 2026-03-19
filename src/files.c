@@ -20,6 +20,7 @@
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
+#include <stdlib.h> // malloc, realloc, free
 
 Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags){
     uint32_t default_file_permissions = S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH;
@@ -236,7 +237,7 @@ Ceabed_API const char *get_executable_path(Buffer *buffer){
         char *place   = NULL;
         while(*scanner != '\0'){
             if(*scanner == '/'){
-                place = scanner;
+                place = scanner+1;
             }
             scanner++;
         }
@@ -248,7 +249,7 @@ Ceabed_API const char *get_executable_path(Buffer *buffer){
         }
 
         result = (char*)buffer->data;
-        buffer->used += length + 1;
+        buffer->used += length+1;
     }
     else{
         fmt_msg("Unable to get executable path. Falling back to relative path.\n");
@@ -294,9 +295,12 @@ typedef struct{
 
 static_assert(sizeof(File_Walker) >= sizeof(File__Walker));
 
-#if 0
+#if 1
 static void file__walker_append_path(File__Walker *s, const char *path){
-
+    // TODO: Actually append the path here!
+    size_t len = strlen(path);
+    assert(len < s->path_count);
+    memcpy(s->path, path, len);
 }
 
 static void file__walker_pop_path(File__Walker *s){
@@ -314,7 +318,7 @@ Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path){
 
     s->file_type = File_Type_Directory;
     s->file_name = dir_path;
-    file_walker_enter_directory(s);
+    file_walker_enter_directory(walker);
 }
 
 Ceabed_API void file_walker_end(File_Walker *walker){
@@ -329,7 +333,7 @@ Ceabed_API bool file_walker_advance(File_Walker *walker){
     bool result = false;
     while(s->dirs_used > 0){
         File__Dir *entry = &s->dirs[s->dirs_used-1];
-        dirent *next = readdir(dir);
+        struct dirent *next = readdir(entry->info);
         if(next){
             const char *name = next->d_name;
             if(strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
@@ -337,7 +341,7 @@ Ceabed_API bool file_walker_advance(File_Walker *walker){
             result = true;
             s->file_name = name;
             switch(next->d_type){
-                default: s->file_type = File_Type_Unkown; break;
+                default: s->file_type = File_Type_Unknown; break;
 
                 case DT_DIR: s->file_type = File_Type_Directory; break;
                 case DT_REG: s->file_type = File_Type_File; break;
@@ -363,29 +367,31 @@ Ceabed_API bool file_walker_advance(File_Walker *walker){
 Ceabed_API void file_walker_enter_directory(File_Walker *walker){
     File__Walker *s = (File__Walker *)walker;
     if(s->file_type == File_Type_Directory){
-        file__walker_append_path(s, s->dir_path);
+        file__walker_append_path(s, s->file_name);
 
-        DIR dir = opendir(s->path);
+        DIR *dir = opendir(s->path);
         if(dir){
             if(s->dirs_used == s->dirs_count){
                 s->dirs_count *= 2;
                 s->dirs = realloc(s->dirs, s->dirs_count);
             }
 
-            File__Dir *entry = &s->dirs[s->dirs_count++];
+            File__Dir *entry = &s->dirs[s->dirs_used++];
             entry->info = dir;
         }
         else{
-            fmt_msg("Unable to walk directory {0}: {1}\n", fmt_cstr(dir_path), fmt_cstr(strerror(errno)));
+            fmt_msg("Unable to walk directory {0}: {1}\n", fmt_cstr(s->path), fmt_cstr(strerror(errno)));
         }
     }
     else{
-        fmt_msg("Unable to walk {0}: Not a directory.\n", fmt_cstr(dir_path));
+        fmt_msg("Unable to walk {0}: Not a directory.\n", fmt_cstr(s->path));
     }
 }
 
 Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
+    String result = {};
 
+    return result;
 }
 
 #endif
