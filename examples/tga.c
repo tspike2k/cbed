@@ -20,8 +20,6 @@ u8 g_scratch[4096];
 u32 g_pixels[Pixels_W*Pixels_H];
 
 int main(){
-    ceabed_begin();
-
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
     Buffer scratch = {&g_scratch[0], Array_Len(g_scratch)};
 
@@ -34,6 +32,5 @@ int main(){
     Img_Pixels pixels = img_load_tga("test.tga", &memory, &scratch);
     img_save_tga("test2.tga", pixels.width, pixels.height, pixels.data, &scratch);
 
-    ceabed_end();
     return 0;
 }

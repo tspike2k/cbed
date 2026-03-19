@@ -12,8 +12,6 @@ License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 char buffer[Buffer_Size];
 
 int main(int args_count, const char** args){
-    ceabed_begin();
-
     File stdout = file_get_stdout();
     if(args_count > 1){
         // Arguments passed to the application are expected to be file names. Therefore we try
@@ -43,7 +41,5 @@ int main(int args_count, const char** args){
             file_stream_out(&stdout, buffer, bytes_read);
         }
     }
-
-    ceabed_end();
     return 0;
 }

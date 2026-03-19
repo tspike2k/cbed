@@ -928,8 +928,6 @@ static void display__close_window(Xlib_Window* w){
 Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags){
     Xlib *s = &g__display;
 
-    ceabed_begin();
-
     s->display = XOpenDisplay(NULL);
     if(!s->display){
         fmt_msg_puts("Unable to open X11 display. Aborting.\n");
@@ -1026,7 +1024,6 @@ Ceabed_API void display_end(){
         XCloseDisplay(s->display);
         s->display = NULL;
     }
-    ceabed_end();
 }
 
 Ceabed_API void display_end_frame(){

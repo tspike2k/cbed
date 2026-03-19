@@ -9,7 +9,10 @@
 #include <string.h> // memcpy
 #include <assert.h>
 
-Ceabed_C_Lib double pow(double x, double y);
+#ifdef OS_Linux
+// TODO: Is there a pow function for integers?
+#  define fmt__pow __builtin_powif
+#endif // OS_Linux
 
 static const char *fmt__int_table = "0123456789abcdefxp";
 
@@ -49,7 +52,7 @@ Ceabed_API Fmt_Arg fmt_cstr(const char *value){
     return result;
 }
 
-#include <stdio.h> // TODO: Use float conversion functiosn sourced from stb.
+#include <stdio.h> // TODO: Use float conversion functions sourced from stb.
 
 Ceabed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size){
     assert(base <= 16);
@@ -248,7 +251,11 @@ Ceabed_API bool str_match(String a, String b){
     return result;
 }
 
+////
+//
 // Conversions
+//
+////
 
 // This function is a slightly edited version of the stb__clex_parse_float function
 // from stb_c_lexer.h by Sean Barrett, et al. The source license used by that library
@@ -297,7 +304,7 @@ Ceabed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
             ++p;
         while (*p >= '0' && *p <= '9')
             exponent = exponent*10 + (*p++ - '0');
-        power = pow(10, exponent); // TODO: Use a builtin pow function? Perhaps we can manage that.
+        power = fmt__pow(10, exponent); // TODO: Use a builtin pow function? Perhaps we can manage that.
         if (sign)
             value /= power;
         else
@@ -317,12 +324,9 @@ Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f){
     return result;
 }
 
-#ifdef __gnu_linux__
+#ifdef OS_Linux
 
 #include <unistd.h>
-
-// TODO: Is there a pow function for integers?
-#define fmt__pow __builtin_powif
 
 static void fmt__default_flush(){
     if(fmt__buffer.used > 0){
@@ -331,7 +335,7 @@ static void fmt__default_flush(){
     }
 }
 
-#endif // __gnu_linux__
+#endif // OS_Linux
 
 static void fmt__default(const char *text, size_t text_count, void *dest){
     if(text){
