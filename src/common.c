@@ -13,11 +13,12 @@ Ceabed_C_Lib double pow(double x, double y);
 
 static const char *fmt__int_table = "0123456789abcdefxp";
 
-static char   fmt__memory[1024];
-static Buffer fmt__buffer;
+static void fmt__default(const char *text, size_t text_count, void *dest);
 
-static void        *fmt__msg_dest;
-static Fmt_Put_Func fmt__msg_put;
+static char         fmt__memory[1024];
+static Buffer       fmt__buffer = {(u8*)fmt__memory, Array_Len(fmt__memory)};
+static void        *fmt__msg_dest = &fmt__buffer;
+static Fmt_Put_Func fmt__msg_put = fmt__default;
 
 enum{
     Fmt_Type_None,
@@ -351,16 +352,6 @@ static void fmt__default(const char *text, size_t text_count, void *dest){
     else{
         fmt__default_flush();
     }
-}
-
-Ceabed_API void ceabed_begin(){
-    fmt__buffer   = (Buffer){(u8*)&fmt__memory[0], Array_Len(fmt__memory)};
-    fmt__msg_dest = &fmt__buffer;
-    fmt__msg_put  = fmt__default;
-}
-
-Ceabed_API void ceabed_end(){
-    fmt__msg_put(NULL, 0, fmt__msg_dest); // Flush the buffer.
 }
 
 Ceabed_API void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data){

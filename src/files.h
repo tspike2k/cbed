@@ -7,9 +7,7 @@
 #ifndef CEABED_FILES_H
 #define CEABED_FILES_H
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include "common.h"
 
 enum{
     File_Flag_Is_Open        = (1 << 0),
@@ -20,10 +18,17 @@ enum{
     File_Flag_Error          = (1 << 6),
 };
 
+typedef enum{
+    File_Type_None,
+    File_Type_Unknown,
+    File_Type_Directory,
+    File_Type_File,
+} File_Type;
+
 typedef struct{
-    uint32_t flags;
-    uint64_t handle;
-    size_t   cursor;
+    u32    flags;
+    u64    handle;
+    size_t cursor; // TODO: Is this for file streaming? Is this a good idea?
 } File;
 
 // NOTE: Read/write operations are done in a blocking mode.
@@ -44,27 +49,18 @@ Ceabed_API File file_get_stdin();
 Ceabed_API File file_get_stdout();
 Ceabed_API File file_get_stderr();
 
-// TODO: Implement directory recursion
-#if 0
+Ceabed_API const char *get_executable_path(Buffer *buffer);
+
 typedef struct{
-    char internal[32];
+    File_Type   file_type;
+    const char *file_name;
+    u8          internal[64];
 } File_Walker;
 
-enum File_Type: uint{
-    None,
-    File,
-    Directory,
-    Unknown,
-}
-
-struct File_Entry{
-    File_Type   type;
-    const char* name;
-}
-
-File_Walker file_recurse_dir(const char *dir, void *memory, size_t memory_size);
-File_Entry file_recurse_next(File_Walker* walker);
-
-#endif
+Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path);
+Ceabed_API void file_walker_end(File_Walker *walker);
+Ceabed_API bool file_walker_advance(File_Walker *walker);
+Ceabed_API void file_walker_enter_directory(File_Walker *walker);
+Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer);
 
 #endif // CEABED_FILES_H

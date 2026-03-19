@@ -57,14 +57,30 @@ typedef double   f64;
 // Common functions
 //
 
-Ceabed_API void ceabed_begin();
-Ceabed_API void ceabed_end();
+//Ceabed_API void ceabed_begin();
+//Ceabed_API void ceabed_end();
 
 //
 // Misc macros
 //
 
 #define for_u32(i, max) for(u32 i = 0; i < (max); i++)
+#define Macro_Join2(a, b) a##b
+#define Macro_Join(a, b) Macro_Join2(a, b)
+
+/*
+//
+// Growable arrays
+//
+
+void   *ga_alloc_raw(size_t size);
+size_t  ga_length(void *array);
+size_t *ga_used(void *array);
+void   *ga_append_raw(void **array, size_t element_size);
+
+#define ga_alloc(T, count) (T*)ga_alloc_raw((count)*(sizeof(T)))
+#define ga_append(T, array) (T*)ga_append_raw(&(array), sizeof(T))
+*/
 
 //
 // Buffers

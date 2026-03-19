@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
 
 Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags){
     uint32_t default_file_permissions = S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH;
@@ -225,6 +226,37 @@ Ceabed_API File file_get_stderr(){
     return result;
 }
 
+Ceabed_API const char *get_executable_path(Buffer *buffer){
+    // TODO: Make sure the pointer is word aligned.
+    const char *result = "./";
+    ssize_t count = readlink("/proc/self/exe", (char*)buffer->data, buffer->size - buffer->used);
+    if(count > 0){
+        // Remove the trailing binary name from the result
+        char *scanner = (char*)buffer->data;
+        char *place   = NULL;
+        while(*scanner != '\0'){
+            if(*scanner == '/'){
+                place = scanner;
+            }
+            scanner++;
+        }
+
+        size_t length = scanner - (char*)buffer->data;
+        if(place){
+            *place = '\0';
+            length = place - (char*)buffer->data;
+        }
+
+        result = (char*)buffer->data;
+        buffer->used += length + 1;
+    }
+    else{
+        fmt_msg("Unable to get executable path. Falling back to relative path.\n");
+    }
+    return result;
+}
+
+// TODO: Shouldn't this be called file_delete?
 Ceabed_API void delete_file(const char *file_path){
     // TODO: Error handling?
     unlink(file_path);
@@ -243,56 +275,119 @@ Ceabed_API bool file_exists(const char *file_path){
     return result;
 }
 
-
-#if 0
 typedef struct {
-    const char* name;
-    DIR         dir;
-    dirent* entry_stream;
-} File__Dir_Node;
+    DIR           *info;
+    struct dirent* contents;
+} File__Dir;
 
-typedef struct {
-    File__Dir_Node *nodes;
-    uint32_t        nodes_used;
-    uint32_t        nodes_length;
+typedef struct{
+    File_Type   file_type;
+    const char *file_name;
+
+    u32        dirs_count;
+    u32        dirs_used;
+    File__Dir *dirs;
+    u32        path_count;
+    u32        path_used;
+    char      *path;
 } File__Walker;
 
-static void file__walk_dir(File__Walker *walker, const char *dir_name){
+static_assert(sizeof(File_Walker) >= sizeof(File__Walker));
+
+#if 0
+static void file__walker_append_path(File__Walker *s, const char *path){
 
 }
 
-void push_directory(String dir_name){
-        auto dir = opendir(dir_name.ptr);
-        if(dir){
-            Node* node;
-            if(node_first_free){
-                node = node_first_free;
-                node_first_free = node.next;
+static void file__walker_pop_path(File__Walker *s){
+
+}
+
+Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path){
+    File__Walker *s = (File__Walker *)walker;
+    memset(s, 0, sizeof(File__Walker));
+
+    s->dirs_count = 16;
+    s->dirs = (File__Dir *)malloc(s->dirs_count * sizeof(File__Dir));
+    s->path_count = 4096;
+    s->path = (char*)malloc(s->path_count);
+
+    s->file_type = File_Type_Directory;
+    s->file_name = dir_path;
+    file_walker_enter_directory(s);
+}
+
+Ceabed_API void file_walker_end(File_Walker *walker){
+    File__Walker *s = (File__Walker *)walker;
+    if(s->dirs) free(s->dirs);
+    if(s->path) free(s->path);
+}
+
+Ceabed_API bool file_walker_advance(File_Walker *walker){
+    File__Walker *s = (File__Walker *)walker;
+
+    bool result = false;
+    while(s->dirs_used > 0){
+        File__Dir *entry = &s->dirs[s->dirs_used-1];
+        dirent *next = readdir(dir);
+        if(next){
+            const char *name = next->d_name;
+            if(strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+            result = true;
+            s->file_name = name;
+            switch(next->d_type){
+                default: s->file_type = File_Type_Unkown; break;
+
+                case DT_DIR: s->file_type = File_Type_Directory; break;
+                case DT_REG: s->file_type = File_Type_File; break;
+
+                case DT_UNKNOWN:{
+                    // TODO: We should try and determine the file type using other means. lstat?
+                    assert(0);
+                } break;
             }
-            else{
-                node = alloc_type!Node(scratch);
-            }
-            node.path = dir_name;
-            nodes.insert(nodes.top, node);
-            node.dir = dir;
+
+            break;
+        }
+        else{
+            closedir(entry->info);
+            s->dirs_used--;
+            file__walker_pop_path(s);
         }
     }
-
-
-File_Walker file_recurse_dir(const char *dir, const char *file_name_buffer, size_t file_name_buffer_size){
-    File_Walker result = {};
-    assert(sizeof(File__Walker) <= sizeof(File_Walker));
-    File__Walker *walker = (File__Walker*)&result;
-
-
-
 
     return result;
 }
 
-file_recurse_next(File_Walker* walker){
+Ceabed_API void file_walker_enter_directory(File_Walker *walker){
+    File__Walker *s = (File__Walker *)walker;
+    if(s->file_type == File_Type_Directory){
+        file__walker_append_path(s, s->dir_path);
+
+        DIR dir = opendir(s->path);
+        if(dir){
+            if(s->dirs_used == s->dirs_count){
+                s->dirs_count *= 2;
+                s->dirs = realloc(s->dirs, s->dirs_count);
+            }
+
+            File__Dir *entry = &s->dirs[s->dirs_count++];
+            entry->info = dir;
+        }
+        else{
+            fmt_msg("Unable to walk directory {0}: {1}\n", fmt_cstr(dir_path), fmt_cstr(strerror(errno)));
+        }
+    }
+    else{
+        fmt_msg("Unable to walk {0}: Not a directory.\n", fmt_cstr(dir_path));
+    }
+}
+
+Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
 
 }
+
 #endif
 
 #endif // OS_Linux
