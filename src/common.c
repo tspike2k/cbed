@@ -183,14 +183,13 @@ Ceabed_API void buffer_put(Buffer *buffer, const char* text, size_t text_len){
 }
 
 Ceabed_API void buffer_null_terminate(Buffer* buffer){
-    if(buffer->size > 0){
-        if(buffer->used < buffer->size){
-            buffer->data[buffer->used] = 0;
-            buffer->used++;
-        }
-        else{
-            buffer->data[buffer->used-1] = 0;
-        }
+    assert(buffer->size);
+    if(buffer->used < buffer->size){
+        buffer->data[buffer->used] = 0;
+        buffer->used++;
+    }
+    else{
+        buffer->data[buffer->used-1] = 0;
     }
 }
 
@@ -247,6 +246,18 @@ Ceabed_API bool str_match(String a, String b){
                 break;
             }
         }
+    }
+    return result;
+}
+
+Ceabed_API char *str_find_last(String s, char c){
+    char *result = NULL;
+    while(s.size > 0){
+        if(*s.text == '/'){
+            result = s.text;
+        }
+        s.text++;
+        s.size--;
     }
     return result;
 }

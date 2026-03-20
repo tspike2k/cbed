@@ -10,18 +10,28 @@ u8 memory[2048];
 
 int main(){
     Buffer buffer = {memory, Array_Len(memory)};
-    const char *exec_path = get_executable_path(&buffer);
+    const char *root_path = get_executable_path(&buffer);
     buffer.used--; // Rewind enough to write over the null-terminator
-    buffer_put(&buffer, "../", 3);
+    buffer_put(&buffer, "..", 3);
     buffer_null_terminate(&buffer);
 
+    /*fmt_msg_puts(root_path);*/
+    /*fmt_msg_puts("\n");*/
+
     File_Walker walker;
-    file_walker_begin(&walker, exec_path);
+    file_walker_begin(&walker, root_path);
     while(file_walker_advance(&walker)){
-        fmt_msg("{0}\n", fmt_cstr(walker.file_name));
+        size_t restore = buffer_frame_begin(&buffer);
+
+        String s = file_walker_make_path(&walker, &buffer);
+        fmt_msg("{0}\n", fmt_cstr(s.text));
         if(walker.file_type == File_Type_Directory){
-            /*file_walker_enter_directory(&walker);*/
+            if(strcmp(walker.file_name, ".git") != 0){
+                file_walker_enter_directory(&walker);
+            }
         }
+
+        buffer_frame_end(&buffer, restore);
     }
     file_walker_end(&walker);
 

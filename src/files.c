@@ -233,23 +233,12 @@ Ceabed_API const char *get_executable_path(Buffer *buffer){
     ssize_t count = readlink("/proc/self/exe", (char*)buffer->data, buffer->size - buffer->used);
     if(count > 0){
         // Remove the trailing binary name from the result
-        char *scanner = (char*)buffer->data;
-        char *place   = NULL;
-        while(*scanner != '\0'){
-            if(*scanner == '/'){
-                place = scanner+1;
-            }
-            scanner++;
-        }
-
-        size_t length = scanner - (char*)buffer->data;
-        if(place){
-            *place = '\0';
-            length = place - (char*)buffer->data;
-        }
-
         result = (char*)buffer->data;
-        buffer->used += length+1;
+        char *place = str_find_last(make_str(result, count), '/');
+        assert(place);
+        place++;
+        *place = '\0';
+        buffer->used += place - result + 1; // Include the null terminator
     }
     else{
         fmt_msg("Unable to get executable path. Falling back to relative path.\n");
@@ -295,16 +284,43 @@ typedef struct{
 
 static_assert(sizeof(File_Walker) >= sizeof(File__Walker));
 
-#if 1
 static void file__walker_append_path(File__Walker *s, const char *path){
-    // TODO: Actually append the path here!
     size_t len = strlen(path);
-    assert(len < s->path_count);
-    memcpy(s->path, path, len);
+    assert(len);
+
+    size_t total_len = len + 2; // Includes the null terminator and possible directory seperator
+
+    size_t next_used = s->path_used + total_len;
+    if(next_used > s->path_count){
+        s->path_count = Max(next_used*2, s->path_count*2);
+        s->path = realloc(s->path, s->path_count);
+    }
+
+    if(s->path_used > 0){
+        assert(s->path_used > 1);
+        assert(s->path[s->path_used-1] == '\0');
+        assert(s->path[s->path_used-2] == '/');
+        s->path_used--; // Rewind before the null terminator
+    }
+
+    memcpy(&s->path[s->path_used], path, len);
+    s->path_used += len;
+    if(s->path[s->path_used-1] != '/'){
+        s->path[s->path_used++] = '/';
+    }
+    s->path[s->path_used++] = '\0';
 }
 
 static void file__walker_pop_path(File__Walker *s){
+    assert(s->path_used > 0);
+    assert(s->path[s->path_used-1] == '\0');
+    assert(s->path[s->path_used-2] == '/');
+    s->path_used -= 2;
 
+    char *place = str_find_last(make_str(s->path, s->path_used), '/');
+    place++;
+    *place = '\0';
+    s->path_used = place - s->path + 1;
 }
 
 Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path){
@@ -389,12 +405,18 @@ Ceabed_API void file_walker_enter_directory(File_Walker *walker){
 }
 
 Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
-    String result = {};
+    File__Walker *s = (File__Walker *)walker;
+    assert(s->path_used > 1);
+    assert(s->path[s->path_used-2] == '/');
+
+    char *base = (char*)&buffer->data[buffer->used];
+    buffer_put(buffer, s->path, s->path_used-1);
+    buffer_put(buffer, s->file_name, strlen(s->file_name));
+    buffer_null_terminate(buffer);
+    String result = {base, ((char*)&buffer->data[buffer->used]) - base};
 
     return result;
 }
-
-#endif
 
 #endif // OS_Linux
 //------------------------------------------------------------------------------

@@ -68,6 +68,9 @@ typedef double   f64;
 #define Macro_Join2(a, b) a##b
 #define Macro_Join(a, b) Macro_Join2(a, b)
 
+#define Min(a, b) (a) < (b) ? (a) : (b)
+#define Max(a, b) (a) > (b) ? (a) : (b)
+
 /*
 //
 // Growable arrays
@@ -128,9 +131,12 @@ Ceabed_API void str_advance(String *reader);
 Ceabed_API String str_eat_line(String *reader);
 Ceabed_API void str_skip_whitespace(String *reader);
 Ceabed_API bool str_match(String a, String);
+Ceabed_API char *str_find_last(String s, char c);
 
 // Conversion functions
 Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
+
+#define make_str(s, count) (String){(char*)(s), (count)}
 
 //
 // String formatting functions
