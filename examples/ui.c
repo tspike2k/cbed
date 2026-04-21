@@ -30,13 +30,17 @@ int main(){
         && draw_begin(&memory);
 
 #   define Panel_Memory_Len 1*1024*1024
-    Display_Info display = display_get_info();
 
-    Gui_Def gui_def = gui_begin_def(&gui);
-    Rect panel_bounds = {v2(20, 20), v2(200, 200)};
-    gui_begin_panel(&gui_def, buffer_push_bytes(&memory, Panel_Memory_Len), Panel_Memory_Len, panel_bounds, 0);
+    Gui_Panel *panel = gui_begin_panel(&gui, buffer_push_bytes(&memory, Panel_Memory_Len), Panel_Memory_Len, panel_bounds, 0);
+    panel->target_size = v2(1.0f, 0);
+    gui_begin_menu_bar(gui);
+
+
+
+    gui_end_menu_bar();
+
     /*gui_button(&gui, Gui_ID_Btn_Test, str("Test"));*/
-    gui_end_panel(&gui_def);
+    gui_end_panel(&gui_def, panel);
     gui_end_def(&gui_def);
 
     while(running){
@@ -62,12 +66,17 @@ int main(){
             }
         }
 
+        Display_Info display = display_get_info();
+
+        gui_set_canvas(&gui, display.window_width, display.window_height);
+        gui_update(&gui, 0);
+
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);
 
         gui_draw(&gui);
-        draw_frame_end();
 
+        draw_frame_end();
         display_flip_backbuffer();
         display_end_frame();
     }

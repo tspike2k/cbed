@@ -463,8 +463,9 @@ String fmt_parse_next(Fmt_Parser *parser){
     return result;
 }
 
-Ceabed_API void fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* args, size_t args_count){
+Ceabed_API String fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* args, size_t args_count){
     Fmt_Parser parser = fmt_parse(fmt_string, strlen(fmt_string));
+    String result = {(char*)&dest->data[dest->used], 0};
     while(!parser.done){
         String text = fmt_parse_next(&parser);
         if(text.size){
@@ -475,8 +476,10 @@ Ceabed_API void fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* ar
         }
     }
     // Null terminate the end of the resulting string.
+    result.size = &dest->data[dest->used] - (u8*)result.text;
     size_t term_index = dest->used < dest->size ? dest->used : dest->size;
     dest->data[term_index] = '\0';
+    return result;
 }
 
 Ceabed_API void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count){

@@ -176,15 +176,11 @@ typedef void (*Fmt_Put_Func)(const char *text, size_t text_count, void *user_dat
 // NOTE: If zero arguments are passed as varargs then fmt_args will still have a length of 1.
 // This shouldn't cause much of an issue as that bug can be pretty easily found, but it is a
 // limitation of this approach.
-#define fmt_msg(s, ...){                                        \
-    Fmt_Arg fmt__args[] = {__VA_ARGS__};                        \
-    fmt_msg_raw((s), &fmt__args[0], Array_Len(fmt__args)); \
-}
+#define fmt_msg(s, ...) \
+    fmt_msg_raw((s), (Fmt_Arg []){__VA_ARGS__}, Array_Len( ((Fmt_Arg []){__VA_ARGS__}) ))
 
-#define fmt_buffer(s, dest, ...){                                        \
-    Fmt_Arg fmt__args[] = {__VA_ARGS__};                                 \
-    fmt_buffer_raw((s), dest, &fmt__args[0], Array_Len(fmt__args)); \
-}
+#define fmt_buffer(s, dest, ...) \
+    fmt_buffer_raw((s), dest, (Fmt_Arg []){__VA_ARGS__}, Array_Len( ((Fmt_Arg []){__VA_ARGS__}) ))
 
 Ceabed_API Fmt_Arg fmt_i(int64_t value);
 Ceabed_API Fmt_Arg fmt_cstr(const char *s);
@@ -195,7 +191,7 @@ Ceabed_API void fmt_msg_put(const char* msg, size_t msg_length);
 Ceabed_API void fmt_msg_puts(const char* msg);
 Ceabed_API void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count);
 
-Ceabed_API void fmt_buffer_raw(const char *fmt_string, Buffer *buffer, Fmt_Arg *args, size_t args_count);
+Ceabed_API String fmt_buffer_raw(const char *fmt_string, Buffer *buffer, Fmt_Arg *args, size_t args_count);
 
 // NOTE: The following is typically used internally but use can make it easier to write type-safe
 // wrappers in other languages.

@@ -11,24 +11,15 @@
 #include "math.h"
 #include "display.h"
 
-typedef u32 Gui_Def_Info;
-
-enum Gui_Item_Type{
-    Gui_Item_Type_None,
-    Gui_Item_Type_Button,
-};
-
-typedef struct{
-    u32  id;
-    u32  user_id;
-    Rect bounds;
-} Gui_Item;
+typedef Gui_ID u32;
+#define gui_id(n) ((__LINE__ << 16) | n)
 
 typedef struct{
     void *next;
     void *prev;
 } Gui_Sentinel;
 
+// TODO: Make this a Gui_Event instead?
 typedef enum Gui_Status{
     Gui_Status_Normal,
     Gui_Status_Dragging,
@@ -39,6 +30,7 @@ typedef struct Gui_Panel {
     struct Gui_Panel *next;
     struct Gui_Panel *prev;
 
+    Vec2 target_size;
     Rect bounds;
 
     size_t buffer_length;
@@ -59,19 +51,12 @@ typedef struct {
     Gui_Status status;
 } Gui;
 
-typedef struct{
-    Gui *gui;
-    Gui_Panel *panel;
-} Gui_Def;
-
-Ceabed_API void gui_update(Gui *gui, f32 dt);
 Ceabed_API bool gui_handle_event(Gui *gui, Event *event);
+Ceabed_API void gui_update(Gui *gui, f32 dt);
 Ceabed_API void gui_draw(Gui *gui);
 
-Ceabed_API Gui_Def gui_begin_def(Gui *gui);
-Ceabed_API void gui_end_def(Gui_Def *gui_def);
-Ceabed_API void gui_begin_panel(Gui_Def *def, void *data, size_t data_len, Rect bounds, u32 flags);
-Ceabed_API void gui_end_panel(Gui_Def *def);
+Ceabed_API Gui_Panel *gui_begin_panel(Gui_Def *def, void *data, size_t data_len, u32 flags);
+Ceabed_API void       gui_end_panel(Gui_Def *def, Gui_Panel *panel);
 Ceabed_API void gui_button(Gui *gui, u32 user_id, String text);
 
 #endif // CEABED_GUI_H
