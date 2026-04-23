@@ -29,19 +29,29 @@ int main(){
     bool running = display_begin("Box", 1024, 768, Display_Flag_HW_Rendering)
         && draw_begin(&memory);
 
+    const char *font_file_name = "./bin/font.fnt";
+    String font_memory = file_read_into_memory(font_file_name, &memory);
+    Font font;
+    if(!font_load_from_memory(&font, font_file_name, font_memory.text, font_memory.size)){
+        fmt_msg("Error loading font.\n");
+    }
+
+    gui.font = &font;
+
 #   define Panel_Memory_Len 1*1024*1024
 
-    Gui_Panel *panel = gui_begin_panel(&gui, buffer_push_bytes(&memory, Panel_Memory_Len), Panel_Memory_Len, panel_bounds, 0);
+    Gui_Panel *panel = gui_begin_panel(&gui, buffer_push_bytes(&memory, Panel_Memory_Len), Panel_Memory_Len, 0);
     panel->target_size = v2(1.0f, 0);
-    gui_begin_menu_bar(gui);
-
-
-
-    gui_end_menu_bar();
+    /*gui_begin_menu_bar(&gui);*/
+    /*gui_end_menu_bar(&gui);*/
 
     /*gui_button(&gui, Gui_ID_Btn_Test, str("Test"));*/
-    gui_end_panel(&gui_def, panel);
-    gui_end_def(&gui_def);
+    gui_end_panel(panel);
+
+    panel = gui_begin_panel(
+        &gui, buffer_push_bytes(&memory, Panel_Memory_Len), Panel_Memory_Len,
+        Gui_Panel_Flag_Floating);
+    gui_end_panel(panel);
 
     while(running){
         Event event;
@@ -68,8 +78,7 @@ int main(){
 
         Display_Info display = display_get_info();
 
-        gui_set_canvas(&gui, display.window_width, display.window_height);
-        gui_update(&gui, 0);
+        gui_update(&gui, display.window_width, display.window_height, 0);
 
         draw_frame_begin();
         draw_set_layer(Draw_Layer_World);

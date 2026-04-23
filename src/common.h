@@ -65,6 +65,7 @@ typedef double   f64;
 //
 
 #define for_u32(i, max) for(u32 i = 0; i < (max); i++)
+#define for_count(T, i, max) for(T i = 0; i < (max); i++)
 #define Macro_Join2(a, b) a##b
 #define Macro_Join(a, b) Macro_Join2(a, b)
 
@@ -136,6 +137,7 @@ Ceabed_API char *str_find_last(String s, char c);
 // Conversion functions
 Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
 
+#define str_lit(s) (String){(char *)s, strlen(s)}
 #define make_str(s, count) (String){(char*)(s), (count)}
 
 //

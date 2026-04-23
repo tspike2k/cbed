@@ -75,10 +75,22 @@ Ceabed_API Rect rect_from_min_wh(Vec2 p, float w, float h);
 Ceabed_API Rect rect_from_min_max(Vec2 min_p, Vec2 max_p);
 Ceabed_API Vec2 rect_min(Rect r);
 Ceabed_API Vec2 rect_max(Rect r);
-Ceabed_API float rect_width(Rect r);
-Ceabed_API float rect_height(Rect r);
+Ceabed_API f32  rect_left(Rect r);
+Ceabed_API f32  rect_right(Rect r);
+Ceabed_API f32  rect_top(Rect r);
+Ceabed_API f32  rect_bottom(Rect r);
+Ceabed_API f32  rect_width(Rect r);
+Ceabed_API f32  rect_height(Rect r);
 Ceabed_API bool is_point_inside_rect(Vec2 p, Rect r);
 Ceabed_API bool rects_overlap(Rect a, Rect b);
+
+Ceabed_API Rect rect_shrink(Rect a, Vec2 size);
+Ceabed_API Rect rect_expand(Rect a, Vec2 size);
+// rect_cut_X concept thanks to Jonathan Blow
+Rect rect_cut_left(Rect r, f32 size);
+Rect rect_cut_right(Rect r, f32 size);
+Rect rect_cut_top(Rect r, f32 size);
+Rect rect_cut_bottom(Rect r, f32 size);
 
 typedef struct{
     float m[4][4];

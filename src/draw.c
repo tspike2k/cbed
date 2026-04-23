@@ -400,7 +400,50 @@ Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text
     }
 }
 
-static Vec3 v2_to_v3(Vec2 p){
+Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len){
+    if(font->glyphs_count == 0) return 0;
+
+    u32 prev_codepoint = 0;
+    f32 result = 0;
+    for_count(size_t, i, text_len){
+        char c = text[i];
+
+        // TODO: Account for line endings?
+
+        Font_Glyph *glyph   = font_get_glyph(font, c);
+        float kerning = font_get_kerning_advance(font, prev_codepoint, c);
+        result += kerning;
+        result += (float)glyph->advance;
+        prev_codepoint = c;
+    }
+    return result;
+}
+
+Ceabed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds){
+    f32 tw = font_get_text_width(font, text, text_len);
+    auto h = font->metrics->cap_height;
+
+    Vec2 result;
+    switch(font_align){
+        default: assert(0);
+
+        case Font_Align_Left:{
+            result = v2(rect_left(bounds), h*0.5f);
+        } break;
+
+        case Font_Align_Right:{
+            assert(0);
+        } break;
+
+        case Font_Align_Center:{
+            result = v2_sub(bounds.center, v2(tw*0.5f, h*0.5f));
+        } break;
+    }
+
+    return result;
+}
+
+static Vec3 v2_to_v3(Vec2 p){ // TODO: Why is this here? Shouldn't this be in math.c?
     Vec3 result = {p.x, p.y, 0};
     return result;
 }

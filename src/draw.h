@@ -153,9 +153,17 @@ typedef struct {
     uint32_t size;
 } Font_Section;
 
+typedef enum{
+    Font_Align_Left,
+    Font_Align_Center,
+    Font_Align_Right,
+} Font_Align;
+
 Ceabed_API bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size);
 Ceabed_API Font_Glyph* font_get_glyph(Font* font, uint32_t codepoint);
 Ceabed_API float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint);
 Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len);
+Ceabed_API f32  font_get_text_width(Font* font, const char *text, size_t text_len);
+Ceabed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds);
 
 #endif // CEABED_DRAW_H

@@ -238,6 +238,26 @@ Ceabed_API Vec2 rect_max(Rect r){
     return result;
 }
 
+Ceabed_API f32 rect_left(Rect r){
+    f32 result = r.center.x - r.extents.x;
+    return result;
+}
+
+Ceabed_API f32 rect_right(Rect r){
+    f32 result = r.center.x + r.extents.x;
+    return result;
+}
+
+Ceabed_API f32 rect_top(Rect r){
+    f32 result = r.center.y + r.extents.y;
+    return result;
+}
+
+Ceabed_API f32 rect_bottom(Rect r){
+    f32 result = r.center.y - r.extents.y;
+    return result;
+}
+
 Ceabed_API float rect_width(Rect r){
     float result = r.extents.x*2.0f;
     return result;
@@ -247,6 +267,31 @@ Ceabed_API float rect_height(Rect r){
     float result = r.extents.y*2.0f;
     return result;
 }
+
+/*
+Rect rect_cut_left(Rect r, f32 size){
+    Rect result = r;
+    result.center.x += size;
+    result.extents.x -= size*0.5f;
+    return result;
+}
+
+Rect rect_cut_right(Rect r, f32 size){
+
+}
+*/
+Rect rect_cut_top(Rect r, f32 size){
+    f32 a = size*0.5f;
+
+    Rect result = r;
+    result.center.y  -= a;
+    result.extents.y -= a;
+    return result;
+}
+/*
+Rect rect_cut_bottom(Rect r, f32 size){
+
+}*/
 
 Ceabed_API bool is_point_inside_rect(Vec2 p, Rect r){
     Vec2 r_min = rect_min(r);
@@ -262,6 +307,18 @@ Ceabed_API bool rects_overlap(Rect a, Rect b){
         && a.center.y - a.extents.y < b.center.y + b.extents.y
         && a.center.y + a.extents.y > b.center.y - b.extents.y;
 
+    return result;
+}
+
+Ceabed_API Rect rect_shrink(Rect a, Vec2 size){
+    Vec2 extents = {a.extents.x - size.x, a.extents.y - size.y};
+    Rect result = {a.center, extents};
+    return result;
+}
+
+Ceabed_API Rect rect_expand(Rect a, Vec2 size){
+    Vec2 extents = {a.extents.x + size.x, a.extents.y + size.y};
+    Rect result = {a.center, extents};
     return result;
 }
 
