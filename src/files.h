@@ -63,4 +63,29 @@ Ceabed_API bool file_walker_advance(File_Walker *walker);
 Ceabed_API void file_walker_enter_directory(File_Walker *walker);
 Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer);
 
+typedef struct{
+    u8 internal[64];
+} File_Watcher;
+
+enum File_Watcher_Event_Type{
+    File_Watcher_Event_None,
+    File_Watcher_Event_Create,
+    File_Watcher_Event_Delete,
+    File_Watcher_Event_Modify,
+};
+
+typedef struct{
+    u32         type;
+    u32         watch_id;
+    const char *name;
+} File_Watcher_Event;
+
+#define File_Watcher_Bad_ID UINT32_MAX
+
+Ceabed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buffer_size);
+Ceabed_API void file_watcher_end(File_Watcher *watcher);
+Ceabed_API u32  file_watcher_add(File_Watcher *watcher, const char *file_path);
+Ceabed_API void file_watcher_update(File_Watcher *watcher);
+Ceabed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt);
+
 #endif // CEABED_FILES_H

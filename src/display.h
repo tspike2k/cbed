@@ -120,6 +120,25 @@ typedef struct{
     bool     pressed; // TODO: Button status flag?
 } Event_Button;
 
+typedef enum{
+    Gamepad_Source_None,
+    Gamepad_Source_Button,
+    Gamepad_Source_Axis,
+} Gamepad_Source;
+
+/*
+typedef struct{
+    u32            type;
+    u32            gamepad_id;
+    Gamepad_Source source;
+    u32            source_index;
+    union{
+        f32        btn_value;
+        Vec2       axis_value;
+    };
+} Event_Gamepad;
+*/
+
 enum{
     Clipboard_Type_Unknown,
     Clipboard_Type_Text,

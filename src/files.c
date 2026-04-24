@@ -17,10 +17,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/inotify.h>
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
 #include <stdlib.h> // malloc, realloc, free
+#include <poll.h>
 
 Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags){
     uint32_t default_file_permissions = S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH;
@@ -416,6 +418,112 @@ Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
     String result = {base, ((char*)&buffer->data[buffer->used]) - base};
 
     return result;
+}
+
+typedef struct{
+    int   inotify_fd;
+    u32   to_watch_count;
+    int   to_watch[8];
+    u32   buffer_length;
+    u32   buffer_count;
+    u8   *buffer;
+    u32   buffer_cursor;
+} File__Watch;
+
+static_assert(sizeof(File__Watch) >= sizeof(File_Watcher));
+
+Ceabed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buffer_size){
+    File__Watch *s = (File__Watch *)watcher;
+    memset(s, 0, sizeof(File__Watch));
+
+    s->inotify_fd = inotify_init1(IN_NONBLOCK);
+    s->buffer = (u8 *)buffer;
+    s->buffer_length = buffer_size;
+
+    if(s->inotify_fd == -1)
+        fmt_msg_puts("Failed to create fd when calling inotify_init1.\n");
+}
+
+Ceabed_API void file_watcher_end(File_Watcher *watcher){
+    File__Watch *s = (File__Watch *)watcher;
+    if(s->inotify_fd == -1) return;
+
+    for_count(size_t, i,  s->to_watch_count){
+        int fd = s->to_watch[i];
+        assert(fd != -1);
+        inotify_rm_watch(s->inotify_fd, fd);
+    }
+
+    close(s->inotify_fd);
+    s->inotify_fd = -1;
+}
+
+Ceabed_API u32 file_watcher_add(File_Watcher *watcher, const char *file_path){
+    File__Watch *s = (File__Watch *)watcher;
+    if(s->inotify_fd == -1) return File_Watcher_Bad_ID;
+
+    u32 target_events = IN_CREATE|IN_MODIFY|IN_DELETE|IN_DELETE_SELF;
+    u32 result;
+    int fd = inotify_add_watch(s->inotify_fd, file_path, target_events);
+    if(fd != -1){
+        s->to_watch[s->to_watch_count++] = fd;
+        result = (u32)fd;
+    }
+    else{
+        result = File_Watcher_Bad_ID;
+        const char *err_msg = strerror(errno);
+        fmt_msg("Failed to add {0} to inotify watch list: {1}\n", fmt_cstr(file_path), fmt_cstr(err_msg));
+    }
+
+    return result;
+}
+
+Ceabed_API void file_watcher_update(File_Watcher *watcher){
+    File__Watch *s = (File__Watch *)watcher;
+    if(s->inotify_fd == -1) return;
+
+    struct pollfd pollfds;
+    pollfds.fd = s->inotify_fd;
+    pollfds.events = POLLIN;
+    poll(&pollfds, 1, 0); // TODO: Use something other than poll? epoll?
+
+    s->buffer_count  = 0;
+    s->buffer_cursor = 0;
+    bool can_read = pollfds.revents & POLLIN;
+    if(can_read){
+        // TODO: Error handling.
+        ssize_t bytes_read = read(s->inotify_fd, s->buffer, s->buffer_length);
+        if(bytes_read > 0){
+            s->buffer_count = bytes_read;
+        }
+    }
+}
+
+Ceabed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt){
+    File__Watch *s = (File__Watch *)watcher;
+    if(s->inotify_fd == -1) return false;
+    if(s->buffer_count - s->buffer_cursor < sizeof(struct inotify_event)) return false;
+
+    struct inotify_event *i_evt = (struct inotify_event *)&s->buffer[s->buffer_cursor];
+    s->buffer_cursor += sizeof(struct inotify_event);
+    if(s->buffer_count - s->buffer_cursor < i_evt->len) return false; // TODO: Short read. Can this happen?
+
+    evt->watch_id = i_evt->wd;
+    evt->name     = (char*)i_evt->name;
+    if(i_evt->mask & IN_CREATE){
+        evt->type = File_Watcher_Event_Create;
+    }
+    else if((i_evt->mask & IN_DELETE) || (i_evt->mask & IN_DELETE_SELF)){
+        evt->type = File_Watcher_Event_Delete;
+    }
+    else if(i_evt->mask & IN_MODIFY){
+        evt->type = File_Watcher_Event_Modify;
+    }
+    else if(i_evt->mask & IN_MODIFY){
+        evt->type = File_Watcher_Event_None;
+    }
+
+    return true;
 }
 
 #endif // OS_Linux

@@ -7,5 +7,6 @@ FLAGS='-g -Wall -Isrc -fvisibility=hidden -Wno-unused-function -Wno-unused-varia
 #gcc $FLAGS -o ./bin/tga examples/tga.c
 #gcc $FLAGS -o ./bin/cat examples/cat.c
 #gcc $FLAGS -o ./bin/walk_files examples/walk_files.c
-#gcc $FLAGS -o ./bin/fmt examples/fmt.c
-gcc $FLAGS  -o ./bin/ui examples/ui.c ./bin/display.o $LIBS
+gcc $FLAGS -o ./bin/fmt examples/fmt.c
+gcc $FLAGS -o ./bin/hotload examples/hotload.c ./bin/display.o $LIBS
+#gcc $FLAGS  -o ./bin/ui examples/ui.c ./bin/display.o $LIBS

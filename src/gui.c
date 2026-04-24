@@ -19,8 +19,8 @@ TODO:
 #define Gui_Window_Min_Height   120
 #define Gui_Window_Resize_Slack 4 // Additional space for grabbing window border for resize operation
 
-
 #define Gui_Border_Color 0xffa86b33
+#define Gui_Work_Color   0xfffae6d9
 
 Ceabed_API void gui_init(Gui *gui){
     gui->panels.next = &gui->panels;
@@ -171,7 +171,7 @@ Ceabed_API void gui_draw(Gui *gui){
 
             Rect work_area = gui__get_work_area(panel, font);
             draw_rect(rect_expand(work_area, v2(1, 1)), 0xff000000);
-            draw_rect(work_area, 0xffffffff);
+            draw_rect(work_area, Gui_Work_Color);
 
             String title = str_lit("Panel");
             if(panel->title.size){
