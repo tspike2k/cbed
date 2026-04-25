@@ -52,6 +52,16 @@ Ceabed_API File file_get_stderr();
 Ceabed_API const char *get_executable_path(Buffer *buffer);
 
 typedef struct{
+    u32 flags;
+    u8  internal[16];
+} File_Lib;
+
+Ceabed_API bool file_open_lib(File_Lib *lib, const char *file_name);
+Ceabed_API void    *file_load_symbol_raw(File_Lib *lib, const char *symbol);
+Ceabed_API void     file_close_lib(File_Lib *lib);
+#define File_Load_Symbol(lib, sym) sym = (Macro_Join(sym, _func))file_load_symbol_raw(lib, #sym)
+
+typedef struct{
     File_Type   file_type;
     const char *file_name;
     u8          internal[64];

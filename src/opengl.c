@@ -62,7 +62,7 @@ glDepthRangeFunc glDepthRange;
 glClearDepthFunc glClearDepth;
 glBufferSubDataFunc glBufferSubData;
 
-void load_opengl_functions(OpenGL_Load_Sym_Func load){
+Ceabed_API void load_opengl_functions(OpenGL_Load_Sym_Func load){
     glGetString = (glGetStringFunc)load("glGetString");
     glEnable = (glEnableFunc)load("glEnable");
     glDisable = (glDisableFunc)load("glDisable");

@@ -33,6 +33,13 @@ typedef float    f32;
 typedef double   f64;
 
 //
+// OS compile-time constants
+//
+#ifdef __gnu_linux__
+#define OS_Linux
+#endif
+
+//
 // Useful preprocessor defines
 //
 
@@ -43,14 +50,11 @@ typedef double   f64;
 #endif
 
 #ifndef Ceabed_API
-#define Ceabed_API
-#endif
-
-//
-// OS compile-time constants
-//
-#ifdef __gnu_linux__
-#define OS_Linux
+#  ifdef OS_Linux
+#    define Ceabed_API __attribute__((visibility("default")))
+#  else
+#    define Ceabed_API
+#  endif
 #endif
 
 //

@@ -4,7 +4,6 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#include <stdbool.h>
 #include "common.c"
 #include "os.c"
 #include "display.h"

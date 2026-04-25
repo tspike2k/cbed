@@ -13,7 +13,7 @@
 #define OpenGL_Version_Minor 3
 
 typedef void *(*OpenGL_Load_Sym_Func)(const char* str);
-void load_opengl_functions(OpenGL_Load_Sym_Func load);
+Ceabed_API void load_opengl_functions(OpenGL_Load_Sym_Func load);
 
 typedef struct __GLsync __GLsync;
 

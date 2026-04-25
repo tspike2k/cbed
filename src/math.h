@@ -13,12 +13,17 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define CLAMP(a, min, max) ((a) < (min) ? (min) : ((a) > (max) ? (max) : (a)))
 
-Ceabed_C_Lib double pow(double x, double y);
-Ceabed_C_Lib double ceil(double x);
-Ceabed_C_Lib double sqrt(double x);
-Ceabed_C_Lib double floor(double x);
-Ceabed_C_Lib double sin(double x);
-Ceabed_C_Lib double cos(double x);
+#ifdef OS_Linux
+
+#define pow   __builtin_powif
+#define ceil  __builtin_ceilf
+#define floor __builtin_floorf
+#define sqrt  __builtin_sqrt
+#define sin   __builtin_sinf
+#define cos   __builtin_cosf
+#define tan   __builtin_tanf
+
+#endif
 
 #define PI  3.141592653589793f
 #define TAU (PI*2.0f)

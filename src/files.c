@@ -267,6 +267,44 @@ Ceabed_API bool file_exists(const char *file_path){
     return result;
 }
 
+typedef struct{
+    u32 flags;
+    void *lib;
+} File__Lib;
+
+static_assert(sizeof(File__Lib) <= sizeof(File_Lib));
+
+Ceabed_API bool file_open_lib(File_Lib *lib, const char *file_name){
+    File__Lib *s = (File__Lib *)lib;
+
+    void *dl = dlopen(file_name, RTLD_NOW); // TODO: Is lazy a good idea? Probably.
+    if(dl){
+        s->lib = dl;
+        s->flags |= File_Flag_Is_Open;
+        return true;
+    }
+    else{
+        fmt_msg("Unable to open shared object {0}: {1}.\n", fmt_cstr(file_name), fmt_cstr(dlerror()));
+        // TODO: Error reporting.
+        return false;
+    }
+}
+
+Ceabed_API void *file_load_symbol_raw(File_Lib *lib, const char *symbol){
+    File__Lib *s = (File__Lib *)lib;
+    assert(s->flags & File_Flag_Is_Open);
+    void *result = dlsym(s->lib, symbol);
+    return result;
+}
+
+Ceabed_API void file_close_lib(File_Lib *lib){
+    File__Lib *s = (File__Lib *)lib;
+    assert(s->flags & File_Flag_Is_Open);
+    dlclose(s->lib);
+    s->lib = NULL;
+    s->flags = 0;
+}
+
 typedef struct {
     DIR           *info;
     struct dirent* contents;
@@ -507,6 +545,7 @@ Ceabed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Even
     struct inotify_event *i_evt = (struct inotify_event *)&s->buffer[s->buffer_cursor];
     s->buffer_cursor += sizeof(struct inotify_event);
     if(s->buffer_count - s->buffer_cursor < i_evt->len) return false; // TODO: Short read. Can this happen?
+    s->buffer_count += i_evt->len;
 
     evt->watch_id = i_evt->wd;
     evt->name     = (char*)i_evt->name;
