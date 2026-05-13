@@ -250,6 +250,32 @@ Ceabed_API bool str_match(String a, String b){
     return result;
 }
 
+Ceabed_API bool str_ends_with(String s, String end){
+    assert(end.size);
+
+    bool result = true;
+    if(s.size >= end.size){
+        size_t start_index = s.size + 1 - end.size;
+        assert(start_index <= s.size);
+
+        const char *a = &s.text[start_index];
+        const char *b = &end.text[0];
+        for(size_t i = 0; i < end.size; i++){
+            if(*a != *b){
+                result = false;
+                break;
+            }
+            a++;
+            b++;
+        }
+    }
+    else{
+        result = false;
+    }
+
+    return result;
+}
+
 Ceabed_API char *str_find_last(String s, char c){
     char *result = NULL;
     while(s.size > 0){

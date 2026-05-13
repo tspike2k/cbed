@@ -137,11 +137,12 @@ Ceabed_API String str_eat_line(String *reader);
 Ceabed_API void str_skip_whitespace(String *reader);
 Ceabed_API bool str_match(String a, String);
 Ceabed_API char *str_find_last(String s, char c);
+Ceabed_API bool  str_ends_with(String s, String end);
 
 // Conversion functions
 Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
 
-#define str_lit(s) (String){(char *)s, strlen(s)}
+#define str_lit(s) (String){(char *)s, Array_Len(s)}
 #define make_str(s, count) (String){(char*)(s), (count)}
 
 //
