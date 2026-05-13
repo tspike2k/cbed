@@ -6,37 +6,29 @@
 
 #include "gamepad.h"
 
-const char *Gamepad__Button_Names[Gamepad_Button_Max] = {
-    "Gamepad_Button_Unkown",
-    "Gamepad_Button_Left",
-    "Gamepad_Button_Right",
-    "Gamepad_Button_Up",
-    "Gamepad_Button_Down",
-    "Gamepad_Button_A",
-    "Gamepad_Button_B",
-    "Gamepad_Button_X",
-    "Gamepad_Button_Y",
-    "Gamepad_Button_L1",
-    "Gamepad_Button_R1",
+String gamepad__input_names[Gamepad_Input_Max] = {
+    str_lit("Gamepad_Input_Unknown"),
+
+    str_lit("Gamepad_Button_Left"),
+    str_lit("Gamepad_Button_Right"),
+    str_lit("Gamepad_Button_Up"),
+    str_lit("Gamepad_Button_Down"),
+    str_lit("Gamepad_Button_A"),
+    str_lit("Gamepad_Button_B"),
+    str_lit("Gamepad_Button_X"),
+    str_lit("Gamepad_Button_Y"),
+    str_lit("Gamepad_Button_L1"),
+    str_lit("Gamepad_Button_R1"),
+
+    str_lit("Gamepad_Stick_LX"),
+    str_lit("Gamepad_Stick_LY"),
+    str_lit("Gamepad_Stick_RX"),
+    str_lit("Gamepad_Stick_RY"),
 };
 
-const char *Gamepad__Stick_Names[Gamepad_Button_Max] = {
-    "Gamepad_Stick_Unknown",
-
-    "Gamepad_Stick_LX",
-    "Gamepad_Stick_LY",
-    "Gamepad_Stick_RX",
-    "Gamepad_Stick_RY",
-};
-
-Ceabed_API String gamepad_get_input_event_string(Gamepad_Event evt){
-    String result;
-    switch(evt.type){
-        default: result = str_lit("Not Input");
-
-        case Gamepad_Event_Button: result = str(Gamepad__Button_Names[evt.id]); break;
-        case Gamepad_Event_Stick:  result = str(Gamepad__Stick_Names[evt.id]); break;
-    }
+Ceabed_API String gamepad_get_input_event_string(Gamepad_Input input){
+    assert(input < Gamepad_Input_Max);
+    String result = gamepad__input_names[input];
     return result;
 }
 
@@ -185,7 +177,7 @@ Ceabed_API bool gamepad_poll(u32 gamepad_index, Gamepad_Event *event){
                 case EV_KEY:{
                     event->type = Gamepad_Event_Button;
                     switch(e.code){
-                        default: event->id = Gamepad_Button_Unknown; break;
+                        default: event->id = Gamepad_Input_Unknown; break;
 
                         case BTN_WEST:  event->id = Gamepad_Button_Y; break;
                         case BTN_NORTH: event->id = Gamepad_Button_X; break;
@@ -201,7 +193,7 @@ Ceabed_API bool gamepad_poll(u32 gamepad_index, Gamepad_Event *event){
                     // TODO: Handle joysticks
                     event->type = Gamepad_Event_Stick;
                     switch(e.code){
-                        default: event->id = Gamepad_Stick_Unknown; break;
+                        default: event->id = Gamepad_Input_Unknown; break;
 
                         case ABS_X:  event->id = Gamepad_Stick_LX; break;
                         case ABS_Y:  event->id = Gamepad_Stick_LY; break;

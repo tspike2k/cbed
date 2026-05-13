@@ -22,6 +22,7 @@
 #define sin   __builtin_sinf
 #define cos   __builtin_cosf
 #define tan   __builtin_tanf
+#define absf  __builtin_fabsf
 
 #endif
 

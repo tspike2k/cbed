@@ -12,7 +12,7 @@ TODO:
 #include "common.h"
 
 typedef enum{
-    Gamepad_Button_Unknown,
+    Gamepad_Input_Unknown,
 
     Gamepad_Button_Left,
     Gamepad_Button_Right,
@@ -25,19 +25,13 @@ typedef enum{
     Gamepad_Button_L1,
     Gamepad_Button_R1,
 
-    Gamepad_Button_Max,
-} Gamepad_Button;
-
-typedef enum{
-    Gamepad_Stick_Unknown,
-
     Gamepad_Stick_LX,
     Gamepad_Stick_LY,
     Gamepad_Stick_RX,
     Gamepad_Stick_RY,
 
-    Gamepad_Stick_Max,
-} Gamepad_Stick;
+    Gamepad_Input_Max,
+} Gamepad_Input;
 
 typedef enum {
     Gamepad_Event_Unknown,
@@ -58,4 +52,4 @@ Ceabed_API void   gamepad_end();
 Ceabed_API void   gamepad_update(Buffer *temp);
 Ceabed_API bool   gamepad_poll(u32 gamepad_index, Gamepad_Event *event);
 Ceabed_API u32    gamepad_get_count();
-Ceabed_API String gamepad_get_input_event_string(Gamepad_Event evt);
+Ceabed_API String gamepad_get_input_event_string(Gamepad_Input input);
