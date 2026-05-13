@@ -6,6 +6,40 @@
 
 #include "gamepad.h"
 
+const char *Gamepad__Button_Names[Gamepad_Button_Max] = {
+    "Gamepad_Button_Unkown",
+    "Gamepad_Button_Left",
+    "Gamepad_Button_Right",
+    "Gamepad_Button_Up",
+    "Gamepad_Button_Down",
+    "Gamepad_Button_A",
+    "Gamepad_Button_B",
+    "Gamepad_Button_X",
+    "Gamepad_Button_Y",
+    "Gamepad_Button_L1",
+    "Gamepad_Button_R1",
+};
+
+const char *Gamepad__Stick_Names[Gamepad_Button_Max] = {
+    "Gamepad_Stick_Unknown",
+
+    "Gamepad_Stick_LX",
+    "Gamepad_Stick_LY",
+    "Gamepad_Stick_RX",
+    "Gamepad_Stick_RY",
+};
+
+Ceabed_API String gamepad_get_input_event_string(Gamepad_Event evt){
+    String result;
+    switch(evt.type){
+        default: result = str_lit("Not Input");
+
+        case Gamepad_Event_Button: result = str(Gamepad__Button_Names[evt.id]); break;
+        case Gamepad_Event_Stick:  result = str(Gamepad__Stick_Names[evt.id]); break;
+    }
+    return result;
+}
+
 //------------------------------------------------------------------------------
 // OS_Linux
 //------------------------------------------------------------------------------
@@ -136,7 +170,6 @@ Ceabed_API bool gamepad_poll(u32 gamepad_index, Gamepad_Event *event){
 
     Gamepad *pad = &gamepad__devices[gamepad_index];
     if(pad->rw_status & POLLIN){ // We can read without blocking
-        fmt_msg_puts("Can read!\n");
         struct input_event e;
 
         ssize_t r = read(pad->fd, &e, sizeof(e));
@@ -144,18 +177,39 @@ Ceabed_API bool gamepad_poll(u32 gamepad_index, Gamepad_Event *event){
             // TODO: Handle errors
         }
         else{
+            // TODO: Mapping of event codes to correct buttons/axis!
+
             switch(e.type){
                 default: break;
 
                 case EV_KEY:{
-                    // TODO: Handle buttons
-                    fmt_msg_puts("Pressed button!\n");
+                    event->type = Gamepad_Event_Button;
+                    switch(e.code){
+                        default: event->id = Gamepad_Button_Unknown; break;
+
+                        case BTN_WEST:  event->id = Gamepad_Button_Y; break;
+                        case BTN_NORTH: event->id = Gamepad_Button_X; break;
+                        case BTN_EAST:  event->id = Gamepad_Button_B; break;
+                        case BTN_SOUTH: event->id = Gamepad_Button_A; break;
+                    }
+
+                    event->value = e.value; // TODO: Do we want a boolean here? Pressed or released?
                     result = true;
                 } break;
 
                 case EV_ABS:{
                     // TODO: Handle joysticks
-                    fmt_msg_puts("Moved joystick!\n");
+                    event->type = Gamepad_Event_Stick;
+                    switch(e.code){
+                        default: event->id = Gamepad_Stick_Unknown; break;
+
+                        case ABS_X:  event->id = Gamepad_Stick_LX; break;
+                        case ABS_Y:  event->id = Gamepad_Stick_LY; break;
+                        case ABS_RX: event->id = Gamepad_Stick_RX; break;
+                        case ABS_RY: event->id = Gamepad_Stick_RY; break;
+                    };
+
+                    event->value = e.value; // TODO: Convert between the range of -1 and 1
                     result = true;
                 } break;
             }

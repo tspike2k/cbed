@@ -8,7 +8,6 @@
 #include "display.h"
 #include "opengl.c"
 #include "math.c"
-/*#include "files.c"*/
 #include "draw.c"
 #include "gamepad.c"
 
@@ -47,7 +46,10 @@ int main(){
         if(gamepad_get_count() > 0){
             Gamepad_Event pad_evt;
             while(gamepad_poll(0, &pad_evt)){
-
+                if(pad_evt.type == Gamepad_Event_Button || pad_evt.type == Gamepad_Event_Stick){
+                    String name = gamepad_get_input_event_string(pad_evt);
+                    fmt_msg("{0}\n", fmt_cstr(name.text));
+                }
             }
         }
 
