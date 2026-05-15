@@ -540,6 +540,7 @@ Ceabed_API void file_watcher_update(File_Watcher *watcher){
 
 Ceabed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt){
     File__Watch *s = (File__Watch *)watcher;
+    // TODO: We're not looping over the buffer, don't we drop events?
     if(s->inotify_fd == -1) return false;
     if(s->buffer_count - s->buffer_cursor < sizeof(struct inotify_event)) return false;
 

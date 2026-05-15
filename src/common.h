@@ -76,6 +76,8 @@ typedef double   f64;
 #define Min(a, b) (a) < (b) ? (a) : (b)
 #define Max(a, b) (a) > (b) ? (a) : (b)
 
+#define Clear_Flags(bits, flags) ((bits) & ~(flags))
+
 /*
 //
 // Growable arrays

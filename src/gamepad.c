@@ -50,69 +50,98 @@ String gamepad__input_names[Gamepad_Input_Max] = {
 #include <stdlib.h> // realloc, free, strdup
 #include <poll.h>
 
-#define Gamepad__Base_Path "/dev/input/by-id"
+#define Gamepad__Base_Path "/dev/input/by-id/"
+
+enum{
+    Gamepad__Connected    = (1 << 0),
+    Gamepad__Disconnected = (1 << 1),
+};
 
 typedef struct{
     int fd;
     int rw_status;
+    u32 connection_events;
     char *file_name;
 } Gamepad;
 
 static int      gamepad__inotify_fd;
-static int      gamepad__input_watch_fd;
+static bool     gamepad__can_read_inotify;
+static int      gamepad__watch_fd;
 static u32      gamepad__capacity;
 static u32      gamepad__count;
 static Gamepad *gamepad__devices;
 
-static bool gamepad__maybe_add_by_path(const char *file_name, Buffer *temp){
-    size_t marker = buffer_frame_begin(temp);
-    bool result = false;
-
-    String path = fmt_buffer(Gamepad__Base_Path "/{0}", temp, fmt_cstr(file_name));
-    int fd = open(path.text, O_RDWR|O_NONBLOCK, 0); // TODO: Should we fall back to read-only if we can't get RW access?
-    if(fd != -1){
-        // TODO: Check to make sure the opened FD is, in fact, a gamepad. This can be done with
-        // esoteric system calls.
-        if(gamepad__count >= gamepad__capacity){
-            gamepad__capacity = MAX(gamepad__capacity * 2, 8);
-            gamepad__devices = (Gamepad *)realloc(gamepad__devices, gamepad__capacity*sizeof(Gamepad));
+static Gamepad *gamepad__get_by_file_name(const char *file_name){
+    Gamepad *result = NULL;
+    for_count(u32, i, gamepad__count){
+        Gamepad *pad = &gamepad__devices[i];
+        if(strcmp(pad->file_name, file_name) == 0){
+            result = pad;
+            break;
         }
-
-        Gamepad *pad = &gamepad__devices[gamepad__count++];
-        memset(pad, 0, sizeof(Gamepad));
-        pad->fd = fd;
-        pad->file_name = strdup(file_name);
-
-        result = true;
     }
-    else{
-        fmt_msg("Error: Unable to open gamepad at path {0}\n", fmt_cstr(path.text));
+    return result;
+}
+
+static Gamepad *gamepad__maybe_add_by_file_name(const char *file_name, Buffer *temp){
+    size_t marker = buffer_frame_begin(temp);
+
+    Gamepad *pad = NULL;
+    if(str_ends_with(str(file_name), str_lit("-event-joystick"))){
+        String path = fmt_buffer(Gamepad__Base_Path "{0}", temp, fmt_cstr(file_name));
+        int fd = open(path.text, O_RDWR|O_NONBLOCK, 0); // TODO: Should we fall back to read-only if we can't get RW access?
+        if(fd != -1){
+            // TODO: Check to make sure the opened FD is, in fact, a gamepad. This can be done with
+            // esoteric ioctl calls.
+            pad = gamepad__get_by_file_name(file_name);
+            if(!pad){
+                if(gamepad__count >= gamepad__capacity){
+                    gamepad__capacity = MAX(gamepad__capacity * 2, 8);
+                    gamepad__devices = (Gamepad *)realloc(gamepad__devices, gamepad__capacity*sizeof(Gamepad));
+                }
+
+                pad = &gamepad__devices[gamepad__count++];
+                memset(pad, 0, sizeof(Gamepad)); // NOTE: Realloc doesn't clear mememory, so we must.
+                pad->file_name = strdup(file_name);
+            }
+
+            pad->fd = fd;
+        }
+        else{
+            fmt_msg("Error: Unable to open gamepad at path {0}\n", fmt_cstr(path.text));
+        }
     }
 
     buffer_frame_end(temp, marker);
-    return result;
+    return pad;
 }
 
 Ceabed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
     gamepad__inotify_fd = inotify_init1(IN_NONBLOCK);
     if(gamepad__inotify_fd == -1){
-        fmt_msg_puts("Failed to create inotify fd for gamepad.\n");
+        const char *error_msg = strerror(errno);
+        fmt_msg("Failed to create inotify fd for gamepad: {0}.\n", fmt_cstr(error_msg));
         return false;
     }
 
-    u32 target_events = IN_CREATE|IN_DELETE;
-    int gamepad__input_watch_fd = inotify_add_watch(gamepad__inotify_fd, Gamepad__Base_Path, target_events);
-    if(gamepad__input_watch_fd == -1){
-        fmt_msg_puts("Failed to setup watch fd on /dev/input for gamepads.\n");
+    // NOTE: In order to detect the creation of symlinks, you need to watch the directory
+    // containing the SOURCE of the link when the link is created, NOT the destination
+    // directory. This means to detect when links are created inside /dev/input/by-id, we need
+    // to monitor /dev/input. This is because all the entries in /dev/input/by-id are symlinks
+    // to device files found directly inside /dev/input.
+    u32 target_events = IN_CREATE|IN_DELETE|IN_ATTRIB;
+    gamepad__watch_fd = inotify_add_watch(gamepad__inotify_fd, Gamepad__Base_Path, target_events);
+    if(gamepad__watch_fd == -1){
+        const char *error_msg = strerror(errno);
+        fmt_msg("Failed to setup watch fd on " Gamepad__Base_Path " for gamepads: {0}\n", fmt_cstr(error_msg));
         return false;
     }
 
     DIR *dir = opendir(Gamepad__Base_Path);
     if(dir){
         for(struct dirent *next = readdir(dir); next; next = readdir(dir)){
-            if(next->d_type == DT_LNK
-            && str_ends_with(str(next->d_name), str_lit("-event-joystick"))){
-                gamepad__maybe_add_by_path(next->d_name, temp);
+            if(next->d_type == DT_LNK){
+                gamepad__maybe_add_by_file_name(next->d_name, temp);
             }
         }
         closedir(dir);
@@ -121,7 +150,7 @@ Ceabed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
         // NOTE: This isn't really a critical error, as we were able to watch the directory if
         // we got this far. It would mean the user would have to re-connect any gamepads the
         // player wishes to use.
-        fmt_msg_puts("Failed to open /dev/input/by-id to scan for connected gamepads. Please reconnect any gamepads you wish to use.\n");
+        fmt_msg_puts("Failed to open " Gamepad__Base_Path " to scan for connected gamepads. Please reconnect any gamepads you wish to use.\n");
     }
 
     return true;
@@ -129,9 +158,9 @@ Ceabed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
 
 Ceabed_API void gamepad_end(){
     if(gamepad__inotify_fd != -1){
-        if(gamepad__input_watch_fd != -1){
-            inotify_rm_watch(gamepad__inotify_fd, gamepad__input_watch_fd);
-            gamepad__input_watch_fd = -1;
+        if(gamepad__watch_fd != -1){
+            inotify_rm_watch(gamepad__inotify_fd, gamepad__watch_fd);
+            gamepad__watch_fd = -1;
         }
 
         close(gamepad__inotify_fd);
@@ -149,23 +178,70 @@ Ceabed_API void gamepad_end(){
 }
 
 Ceabed_API void gamepad_update(Buffer *temp){
-    if(gamepad__count == 0) return;
-
     size_t marker = buffer_frame_begin(temp);
-    struct pollfd *poll_fds = buffer_push_array(struct pollfd, temp, gamepad__count);
+
+    u32 poll_fds_count = 0;
+    struct pollfd *poll_fds = buffer_push_array(struct pollfd, temp, gamepad__count+1);
     for_count(u32, i, gamepad__count){
-        struct pollfd *entry = &poll_fds[i];
+        struct pollfd *entry = &poll_fds[poll_fds_count++];
         entry->events = POLLIN|POLLOUT;
         entry->fd = gamepad__devices[i].fd;
     }
 
+    u32 inotify_pollfds_index;
+    if(gamepad__inotify_fd != -1){
+        inotify_pollfds_index = poll_fds_count++;
+        assert(inotify_pollfds_index == gamepad__count);
+        struct pollfd *entry = &poll_fds[inotify_pollfds_index];
+        entry->events = POLLIN;
+        entry->fd = gamepad__inotify_fd;
+        entry->revents = 0;
+    }
+
     // TODO: Use epoll instead? It's supposed to be faster.
-    poll(poll_fds, gamepad__count, 0);
+    poll(poll_fds, poll_fds_count, 0);
     for_count(u32, i, gamepad__count){
         gamepad__devices[i].rw_status = poll_fds[i].revents;
     }
 
-    // TODO: Check to see if we need to add gamepads using inotify.
+    if(gamepad__inotify_fd != -1 && poll_fds[inotify_pollfds_index].revents & POLLIN){
+        u32   buffer_size = 8192;
+        u8 buffer[buffer_size];
+
+        ssize_t r = read(gamepad__inotify_fd, buffer, buffer_size);
+        if(r >= sizeof(struct inotify_event)){
+            size_t buffer_offset = 0;
+            while(buffer_offset < r){
+                struct inotify_event *e = (struct inotify_event *)&buffer[buffer_offset];
+
+                if(e->mask & (IN_CREATE)){
+                    fmt_msg("IN_CREATE: {0}\n", fmt_cstr(e->name));
+                    Gamepad *pad = gamepad__maybe_add_by_file_name(e->name, temp);
+                    if(pad){
+                        pad->connection_events |= Gamepad__Connected;
+                    }
+                }
+                else if(e->mask & (IN_DELETE|IN_ATTRIB)){
+                    fmt_msg("IN_DELETE: {0}\n", fmt_cstr(e->name));
+                    // Find the gamepad that matches the file name and close its fd.
+                    Gamepad *pad = gamepad__get_by_file_name(e->name);
+                    if(pad){
+                        assert(pad->fd != -1);
+                        close(pad->fd);
+                        pad->fd = -1;
+                        pad->connection_events |= Gamepad__Disconnected;
+                    }
+                }
+
+                buffer_offset += sizeof(struct inotify_event) + e->len;
+            }
+        }
+        else if(r < 0 && errno != EAGAIN){
+            const char *error_msg = strerror(errno);
+            fmt_msg("Got error '{0}' when reading gamepad input inotify fd.\n", fmt_cstr(error_msg));
+        }
+    }
+
     buffer_frame_end(temp, marker);
 }
 
@@ -225,31 +301,49 @@ static bool gamepad__translate_event(Gamepad_Event *dest, struct input_event sou
     return translated;
 }
 
+Ceabed_API bool gamepad_is_connected(u32 gamepad_index){
+    assert(gamepad_index < gamepad__count);
+    Gamepad *pad = &gamepad__devices[gamepad_index];
+    bool result = pad->fd != -1;
+    return result;
+}
+
 Ceabed_API bool gamepad_next_event(u32 gamepad_index, Gamepad_Event *event){
     assert(gamepad_index < gamepad__count);
 
     bool result = false;
     Gamepad *pad = &gamepad__devices[gamepad_index];
-    if(pad->rw_status & POLLIN){ // We can read without blocking
-        // Loop to handle short reads and skip events that can't be translated
-        while(true){
-            struct input_event e;
-            ssize_t r = read(pad->fd, &e, sizeof(e));
-            if(r == sizeof(e)){
-                if(gamepad__translate_event(event, e)){
-                    result = true;
-                    break;
-                }
-            }
-            else{
-                // NOTE: Even though we use poll to see if the file descriptor can be read from,
-                // it's still possible there may be nothing to read. In that case, read() will
-                // return EAGAIN since we opened the fd in non-blocking mode.
-                if(errno != EAGAIN){
-                    const char *error_msg = strerror(errno);
-                    fmt_msg("Got error '{0}' when reading gamepad {1}\n", fmt_cstr(error_msg), fmt_cstr(pad->file_name));
+    if(pad->fd != -1){
+        if(pad->connection_events & Gamepad__Connected){
+            result = true;
+            event->type = Gamepad_Event_Connect;
+            pad->connection_events = Clear_Flags(pad->connection_events, Gamepad__Connected);
+        }
+        else if(pad->connection_events & Gamepad__Connected){
+            result = true;
+            event->type = Gamepad_Event_Disconnect;
+            pad->connection_events = Clear_Flags(pad->connection_events, Gamepad__Disconnected);
+        }
+        else if(pad->rw_status & POLLIN){ // We can read without blocking
+            // Loop to handle short reads and skip events that can't be translated
+            while(true){
+                struct input_event e;
+                ssize_t r = read(pad->fd, &e, sizeof(e));
+                if(r == sizeof(e)){
+                    if(gamepad__translate_event(event, e)){
+                        result = true;
+                        break;
+                    }
                 }
                 else{
+                    // NOTE: Even though we use poll to see if the file descriptor can be read from,
+                    // it's still possible there may be nothing to read. In that case, read() will
+                    // return EAGAIN since we opened the fd in non-blocking mode.
+                    if(errno != EAGAIN){
+                        const char *error_msg = strerror(errno);
+                        fmt_msg("Got error '{0}' when reading gamepad {1}\n", fmt_cstr(error_msg), fmt_cstr(pad->file_name));
+                    }
+
                     break;
                 }
             }
