@@ -108,7 +108,8 @@ static Gamepad *gamepad__maybe_add_by_file_name(const char *file_name, Buffer *t
             pad->fd = fd;
         }
         else{
-            fmt_msg("Error: Unable to open gamepad at path {0}\n", fmt_cstr(path.text));
+            const char *error_msg = strerror(errno);
+            fmt_msg("Error: Unable to open gamepad at path {0}: {1}\n", fmt_cstr(path.text), fmt_cstr(error_msg));
         }
     }
 
@@ -124,12 +125,15 @@ Ceabed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
         return false;
     }
 
-    // NOTE: In order to detect the creation of symlinks, you need to watch the directory
-    // containing the SOURCE of the link when the link is created, NOT the destination
-    // directory. This means to detect when links are created inside /dev/input/by-id, we need
-    // to monitor /dev/input. This is because all the entries in /dev/input/by-id are symlinks
-    // to device files found directly inside /dev/input.
-    u32 target_events = IN_CREATE|IN_DELETE|IN_ATTRIB;
+    // NOTE: In my tests, when a gamepad is connected a hidden symlink is first added to
+    // /dev/input/by-id. This symlink begins with ".#" and ends in an additional hash. The
+    // symlink is then renamed to strip off the starting ".#" and ending hash value to leave
+    // the true name of the device. Renaming is done by moving a file, so we need to monitor
+    // IN_MOVED_TO events to get the real name of the device when its added.
+    //
+    // Also note, we should use IN_ATTRIB to make sure we avoid race conditions:
+    // https://stackoverflow.com/a/25672039
+    u32 target_events = IN_CREATE|IN_DELETE|IN_ATTRIB|IN_MOVED_TO;
     gamepad__watch_fd = inotify_add_watch(gamepad__inotify_fd, Gamepad__Base_Path, target_events);
     if(gamepad__watch_fd == -1){
         const char *error_msg = strerror(errno);
@@ -213,17 +217,15 @@ Ceabed_API void gamepad_update(Buffer *temp){
             size_t buffer_offset = 0;
             while(buffer_offset < r){
                 struct inotify_event *e = (struct inotify_event *)&buffer[buffer_offset];
+                buffer_offset += sizeof(struct inotify_event) + e->len;
 
-                if(e->mask & (IN_CREATE)){
-                    fmt_msg("IN_CREATE: {0}\n", fmt_cstr(e->name));
+                if(e->mask & (IN_CREATE|IN_ATTRIB) || e->mask & (IN_MOVED_TO|IN_ATTRIB)){
                     Gamepad *pad = gamepad__maybe_add_by_file_name(e->name, temp);
                     if(pad){
                         pad->connection_events |= Gamepad__Connected;
                     }
                 }
                 else if(e->mask & (IN_DELETE|IN_ATTRIB)){
-                    fmt_msg("IN_DELETE: {0}\n", fmt_cstr(e->name));
-                    // Find the gamepad that matches the file name and close its fd.
                     Gamepad *pad = gamepad__get_by_file_name(e->name);
                     if(pad){
                         assert(pad->fd != -1);
@@ -232,8 +234,6 @@ Ceabed_API void gamepad_update(Buffer *temp){
                         pad->connection_events |= Gamepad__Disconnected;
                     }
                 }
-
-                buffer_offset += sizeof(struct inotify_event) + e->len;
             }
         }
         else if(r < 0 && errno != EAGAIN){
