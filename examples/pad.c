@@ -20,8 +20,10 @@ static bool is_stick(Gamepad_Input input){
     switch(input){
         default: break;
 
-        case Gamepad_Stick_LX:
-        case Gamepad_Stick_LY:
+        case Gamepad_Axis_LX:
+        case Gamepad_Axis_LY:
+        case Gamepad_Axis_RX:
+        case Gamepad_Axis_RY:
             result = true;
             break;
     }
@@ -46,8 +48,6 @@ static u32 gamepad_color(Gamepad_Input id){
             result = highlight;
     }
 
-    if(g_gamepad_status[id] != 0){
-    }
     return result;
 }
 
@@ -71,8 +71,8 @@ static Rect gamepad_bounds(Gamepad_Input id, Display_Info display){
         case Gamepad_Button_X: result = (Rect){v2_add(btn_center, v2(-spacing.x, 0)), extents}; break;
         case Gamepad_Button_B: result = (Rect){v2_add(btn_center, v2( spacing.x, 0)), extents}; break;
 
-        case Gamepad_Stick_LX: result = (Rect){l_stick_center, v2(extents.x*4.0f, extents.y)}; break;
-        case Gamepad_Stick_LY: result = (Rect){l_stick_center, v2(extents.x, extents.y*4.0f)}; break;
+        case Gamepad_Axis_LX: result = (Rect){l_stick_center, v2(extents.x*4.0f, extents.y)}; break;
+        case Gamepad_Axis_LY: result = (Rect){l_stick_center, v2(extents.x, extents.y*4.0f)}; break;
     }
 
     return result;
@@ -84,6 +84,8 @@ int main(){
     u32 display_flags = Display_Flag_HW_Rendering;
     bool running = display_begin("Box", 1024, 768, display_flags) && draw_begin(&memory);
     gamepad_begin(NULL, &memory);
+
+    fmt_msg("{0}\n", fmt_i(0));
 
     memset(g_gamepad_status, 0, Array_Len(g_gamepad_status)*sizeof(f32));
 
@@ -114,12 +116,17 @@ int main(){
         gamepad_update(&memory);
         if(gamepad_get_count() > 0){
             Gamepad_Event pad_evt;
-            while(gamepad_poll(0, &pad_evt)){
-                if(pad_evt.type == Gamepad_Event_Button || pad_evt.type == Gamepad_Event_Stick){
-                    String name = gamepad_get_input_event_string(pad_evt.id);
+            while(gamepad_next_event(0, &pad_evt)){
+                if(!is_stick(pad_evt.id) || absf(pad_evt.value) > 3000){
+                    /*size_t marker = buffer_frame_begin(&memory);*/
+                    String name = gamepad_get_event_string(pad_evt, &memory);
                     fmt_msg("{0}: {1}\n", fmt_cstr(name.text), fmt_f(pad_evt.value));
+                    /*buffer_frame_end(&memory, marker);*/
                 }
-                g_gamepad_status[pad_evt.id] = pad_evt.value;
+
+                if(pad_evt.type == Gamepad_Event_Input){
+                    g_gamepad_status[pad_evt.id] = pad_evt.value;
+                }
             }
         }
 
@@ -131,8 +138,8 @@ int main(){
         draw_rect(gamepad_bounds(Gamepad_Button_Y, display), gamepad_color(Gamepad_Button_Y));
         draw_rect(gamepad_bounds(Gamepad_Button_B, display), gamepad_color(Gamepad_Button_B));
         draw_rect(gamepad_bounds(Gamepad_Button_X, display), gamepad_color(Gamepad_Button_X));
-        draw_rect(gamepad_bounds(Gamepad_Stick_LX, display), gamepad_color(Gamepad_Stick_LX));
-        draw_rect(gamepad_bounds(Gamepad_Stick_LY, display), gamepad_color(Gamepad_Stick_LY));
+        draw_rect(gamepad_bounds(Gamepad_Axis_LX, display), gamepad_color(Gamepad_Axis_LX));
+        draw_rect(gamepad_bounds(Gamepad_Axis_LY, display), gamepad_color(Gamepad_Axis_LY));
 
         draw_frame_end();
 

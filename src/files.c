@@ -529,6 +529,7 @@ Ceabed_API void file_watcher_update(File_Watcher *watcher){
     s->buffer_cursor = 0;
     bool can_read = pollfds.revents & POLLIN;
     if(can_read){
+        // TODO: The read should be in file_watcher_next_event... why are we doing that here?
         // TODO: Error handling.
         ssize_t bytes_read = read(s->inotify_fd, s->buffer, s->buffer_length);
         if(bytes_read > 0){

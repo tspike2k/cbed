@@ -60,9 +60,7 @@ Ceabed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_si
     buffer[buffer_size-1] = '0';
     String result = {&buffer[buffer_size-1], 1};
 
-    for(size_t i = buffer_size; i > 0; i--){
-        if(n == 0) break;
-
+    for(size_t i = buffer_size; i > 0 && n != 0; i--){
         char c = fmt__int_table[n % base];
         buffer[i-1] = c;
         result = (String){&buffer[i-1], buffer_size - i + 1};
@@ -95,19 +93,19 @@ Ceabed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buf
     return result;
 }
 
-static size_t fmt__s64(char *buffer, size_t buffer_length, int64_t value, uint32_t base){
+static String fmt__s64(char *buffer, size_t buffer_length, int64_t n, uint32_t base){
     assert(base <= 16);
 
-    size_t cursor = buffer_length;
-    for(size_t i = cursor; i > 0; i--){
-        if(value == 0) break;
+    buffer[buffer_length-1] = '0';
+    String result = {&buffer[buffer_length-1], 1};
 
-        cursor = i-1;
-        char c = fmt__int_table[value % base];
-        buffer[cursor] = c;
-        value /= base;
+    for(size_t i = buffer_length; i > 0 && n != 0; i--){
+        char c = fmt__int_table[n % base];
+        buffer[i-1] = c;
+        result = (String){&buffer[i-1], buffer_length - i + 1};
+        n /= base;
     }
-    return cursor;
+    return result;
 }
 
 static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
@@ -119,8 +117,7 @@ static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
         default: assert(0); break;
 
         case Fmt_Type_Signed_Integer:{
-            size_t cursor = fmt__s64(&temp_buffer[0], buffer_size, arg.data_int, 10);
-            text = (String){&temp_buffer[cursor], buffer_size - cursor};
+            text = fmt__s64(&temp_buffer[0], buffer_size, arg.data_int, 10);
         } break;
 
         case Fmt_Type_Float:{
@@ -129,7 +126,7 @@ static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
 
         case Fmt_Type_C_String:{
             const char* s = arg.data_cstr;
-            text = (String){(char*)s, strlen(s)};
+            text = (String){(char*)s, !s ? 0 : strlen(s)};
         } break;
     }
 
