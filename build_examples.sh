@@ -6,13 +6,14 @@ gcc -c $FLAGS ./src/display.c -o ./bin/display.o $LIBS
 #ar rcs ./bin/libdisplay.a ./bin/display.o
 
 #gcc $FLAGS -c ./src/display.c -o ./bin/display.o $LIBS
-gcc $FLAGS -o ./bin/rect examples/rect.c ./bin/display.o $LIBS
+#gcc $FLAGS -o ./bin/rect examples/rect.c ./bin/display.o $LIBS
 #gcc $FLAGS -o ./bin/box examples/box.c ./bin/display.o $LIBS
 #gcc $FLAGS -o ./bin/tga examples/tga.c
 #gcc $FLAGS -o ./bin/cat examples/cat.c
 #gcc $FLAGS -o ./bin/walk_files examples/walk_files.c
 #gcc $FLAGS -o ./bin/fmt examples/fmt.c
-gcc $FLAGS -o ./bin/pad examples/pad.c ./bin/display.o $LIBS
+#gcc $FLAGS -o ./bin/pad examples/pad.c ./bin/display.o $LIBS
+gcc $FLAGS -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype
 
 
 

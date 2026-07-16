@@ -211,6 +211,7 @@ Ceabed_API void str_advance(String* reader){
 }
 
 Ceabed_API String str_eat_line(String *reader){
+    // TODO: This is buggy! The reader doesn't skip the ending newline.
     String result = *reader;
     while(reader->size){
         if(reader->text[0] == '\n'){
