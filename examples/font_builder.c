@@ -10,8 +10,9 @@ License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 #include "files.c"
 #include "img.c"
 #include "font.c"
+#include "math.c"
 
-u8 g_memory[8*1024*1204];
+u8 g_memory[32*1024*1204];
 
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
@@ -27,13 +28,16 @@ int main(){
     char max_char = '~';
     uint codepoints[max_char - min_char];
     for_count(u32, i, max_char - min_char){
-        codepoints[i] = min_char + i;
+        codepoints[i] = ((char)min_char + i);
     }
 
-    String dest = font_generate(font_info, "DejaVuSerif.ttf", &codepoints[0], Array_Len(codepoints), &memory);
+    Font_Builder *builder = font_builder_begin(&memory);
+
+    String dest = font_builder_generate(builder, font_info, "DejaVuSerif.ttf", &codepoints[0], Array_Len(codepoints));
     if(dest.size){
         file_write_from_memory("./bin/font2.fnt", dest.text, dest.size);
     }
 
+    font_builder_end(builder);
     return 0;
 }

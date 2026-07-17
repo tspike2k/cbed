@@ -70,6 +70,7 @@ typedef double   f64;
 
 #define for_u32(i, max) for(u32 i = 0; i < (max); i++)
 #define for_count(T, i, max) for(T i = 0; i < (max); i++)
+#define for_range(T, i, min, max) for(T i = (min); i < (max); i++)
 #define Macro_Join2(a, b) a##b
 #define Macro_Join(a, b) Macro_Join2(a, b)
 

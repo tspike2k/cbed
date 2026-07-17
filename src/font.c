@@ -6,6 +6,11 @@ License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 
 #include "font.h"
 
+Ceabed_API bool font_is_valid(Font* font, size_t memory_size){
+    bool result = memory_size > sizeof(Font) && memory_size >= font->expected_size;
+    return result;
+}
+
 Ceabed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
     u8 *base = (u8 *)font;
     Font_Kerning_Pair *kerning_pairs = (Font_Kerning_Pair *)&base[font->kerning_pairs_offset];
@@ -50,8 +55,9 @@ Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
 #include FT_FREETYPE_H
 #include <freetype/ftstroke.h>
 #include "img.h"
+#include "math.h"
 
-typedef struct{
+struct Font_Builder{
     Buffer*      memory;
     Font_Info    font_info;
 
@@ -59,13 +65,21 @@ typedef struct{
     u32         *codepoints;
     Font_Glyph  *glyphs;
     u32        **glyph_pixels;
+    u32         *atlas;
+    u32          atlas_w;
+    u32          atlas_h;
 
     FT_Library lib;
     FT_Face    face;
     FT_Stroker stroker;
-} Font_Builder;
+};
 
-static const char *font__get_font_path(Buffer* memory, const char *font_file_name){
+typedef struct{
+    u32 x, y, w, h;
+} Font_Rect;
+
+// TODO: Since this is rather nuanced, should we expose this to the user?
+static const char *font__get_font_path(const char *font_file_name, Buffer* memory){
     char *result = NULL;
 
     /*size_t memory_restore = memory_used;*/
@@ -80,27 +94,19 @@ static const char *font__get_font_path(Buffer* memory, const char *font_file_nam
     return result;
 }
 
-static bool font__builder_open(Font_Builder *s, const char *font_file_name, Buffer *memory){
-    const char * font_path = font__get_font_path(memory, font_file_name);
-    // TODO: Get error diagnostic from Freetype? Can you?
+Ceabed_API Font_Builder *font_builder_begin(Buffer *buffer){
+    Font_Builder *result = buffer_push_type(Font_Builder, buffer);
 
-    s->memory = memory;
-    if(FT_Init_FreeType(&s->lib) != 0){
+    result->memory = buffer;
+    if(FT_Init_FreeType(&result->lib) != 0){
         fmt_msg("Error! Failed to initialize Freetype2.\n");
         return false;
     }
 
-    if(FT_New_Face(s->lib, font_path, 0, &s->face) != 0){
-        fmt_msg("Error: Unable to load font file {0}. Aborting...\n", fmt_cstr(font_file_name));
-        return false;
-    }
-
-    return true;
+    return result;
 }
 
-static void font__builder_close(Font_Builder *s){
-    if(s->stroker) FT_Stroker_Done(s->stroker);
-    if(s->face) FT_Done_Face(s->face);
+Ceabed_API void font_builder_end(Font_Builder *s){
     if(s->lib) FT_Done_FreeType(s->lib);
 }
 
@@ -139,6 +145,7 @@ static void font__blit_glyph(FT_BitmapGlyph bitmap_glyph, u32 dest_w, u32 dest_h
     u32 w = bitmap_glyph->bitmap.width;
     u32 h = bitmap_glyph->bitmap.rows;
 
+    // TODO: Better blitting code
     for(u32 y = 0; y < h; y++){
         for(u32 x = 0; x < w; x++){
             u32 alpha = bitmap_glyph->bitmap.buffer[x + y*w];
@@ -153,7 +160,7 @@ static void font__blit_glyph(FT_BitmapGlyph bitmap_glyph, u32 dest_w, u32 dest_h
 }
 
 static FT_BitmapGlyph font__rasterize_glyph(FT_Face face, FT_Stroker stroker, u32 codepoint, u32 stroke){
-    // TODO: Error handling!
+    // TODO: Error handling? We at least need to know if the glyph was sucessfully found or not.
     FT_Load_Char(face, codepoint, FT_LOAD_DEFAULT | FT_LOAD_NO_BITMAP);
     FT_Glyph glyph_info;
     FT_Get_Glyph(face->glyph, &glyph_info);
@@ -231,60 +238,153 @@ static bool font__generate_glyph(Font_Builder *s, u32 codepoint, u32 index){
     return succeeded;
 }
 
-Ceabed_API String font_generate(Font_Info info, const char* font_file_name, u32 *codepoints, u32 codepoints_count, Buffer *memory){
-    assert(codepoints_count > 0);
+static void font__bake_glyphs_to_atlas(Font_Builder *s){
+    u32 total_w = 0;
+    u32 total_h = 0;
+    u32 padding = 1;
 
-    String result = {};
-    Font_Builder builder = {};
-    if(font__builder_open(&builder, font_file_name, memory)){
-        FT_Set_Pixel_Sizes(builder.face, 0, info.height);
-        if(info.stroke > 0){
-            FT_Stroker_New(builder.lib, &builder.stroker);
-            FT_Stroker_Set(builder.stroker, info.stroke*64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+    // Guess canvas size
+    for_count(u32, i, s->codepoints_count){
+        if(s->glyph_pixels[i]){
+            Font_Glyph *glyph = &s->glyphs[i];
+            total_w += glyph->width  + padding*2;
+            total_h += glyph->height + padding*2;
         }
-
-        // See here for a discussion on calculating the line gap:
-        // https://freetype.nongnu.narkive.com/MyeGsd2a/ft-vert-advance-on-line-break
-        // https://stackoverflow.com/a/30793586
-        FT_Face face = builder.face;
-        u32 internal_leading = (u32)((face->size->metrics.ascender - face->size->metrics.descender) >> 6) - face->size->metrics.y_ppem;
-        u32 line_gap    = (u32)(face->size->metrics.height) >> 6;
-        u32 cap_height  = (u32)((face->size->metrics.ascender >> 6) - internal_leading);
-        u32 char_height = (u32)(face->bbox.yMax - face->bbox.yMin) >> 6;
-
-        builder.font_info = info;
-        builder.codepoints = codepoints;
-        builder.glyphs = buffer_push_array(Font_Glyph, memory, codepoints_count);
-        builder.glyph_pixels = buffer_push_array(u32*, memory, codepoints_count);
-
-        // TODO: Rasterize the Null glyph here.
-        u32 valid_codepoints_count = 0;
-        for_count(u32, i, codepoints_count){
-            if(font__generate_glyph(&builder, codepoints[i], valid_codepoints_count)){
-                if(codepoints[i] == 'M'){
-                    Buffer restore = *memory;
-                    Font_Glyph *glyph = &builder.glyphs[i];
-                    img_save_tga("test.tga", glyph->width, glyph->height, builder.glyph_pixels[i], memory);
-                    *memory = restore;
-                }
-
-                valid_codepoints_count++;
-            }
-        }
-
-        /*font__bake_glyphs_to_atlas(builder);*/
-
-        // Begin writing the font to memory
-        Buffer memory_before = *memory;
-        Font *font = buffer_push_type(Font, memory);
-
-        font->header.magic   = Font_File_Magic;
-        font->header.version = Font_File_Version;
-        font->line_gap    = line_gap;
-        font->cap_height  = cap_height;
-        font->char_height = char_height;
     }
-    font__builder_close(&builder);
+
+    u32 target_w = round_up_power_of_two(sqrt(total_w*total_h));
+    u32 target_h = target_w;
+
+    // Layout glyphs on canvas (do this as a unique pass in case we later add expanding the canvas)
+    Font_Rect *bounds = buffer_push_array(Font_Rect, s->memory, s->codepoints_count);
+    u32 pen_x = padding;
+    u32 pen_y = padding;
+    u32 line_height = 0;
+    for_count(u32, i, s->codepoints_count){
+        if(s->glyph_pixels[i]){
+            Font_Glyph *glyph = &s->glyphs[i];
+
+            if(pen_x + glyph->width >= target_w - padding){
+                pen_x = padding;
+                pen_y += line_height + padding;
+                line_height = 0;
+            }
+            assert(pen_x + glyph->width < target_w - padding);
+            assert(pen_y + glyph->height < target_h - padding);
+
+            Font_Rect *r = &bounds[i];
+            r->x = pen_x;
+            r->y = pen_y;
+            r->w = glyph->width;
+            r->h = glyph->height;
+
+            pen_x += r->w + padding;
+            line_height = MAX(r->h, line_height);
+        }
+    }
+
+    s->atlas_w = target_w;
+    s->atlas_h = target_h;
+    s->atlas = buffer_push_array(u32, s->memory, s->atlas_w*s->atlas_h);
+
+    // Blit glyph pixels and calculate UVs
+    for_count(u32, i, s->codepoints_count){
+        if(s->glyph_pixels[i]){
+            Font_Rect r       = bounds[i];
+            u32 *src = s->glyph_pixels[i];
+            /*u32 *dest = &s->atlas[r.x + r.y * s->atlas_w];*/
+            u32 *dest = s->atlas;
+            u32  dest_stride = s->atlas_w - r.x;
+
+            for_count(u32, y, r.h){
+                for_count(u32, x, r.w){
+                    /**dest++ = *src++;*/
+                    dest[r.x + x + (r.y + y) * s->atlas_w] = src[x + y * r.w];
+                }
+                /*dest += dest_stride;*/
+            }
+
+            Font_Glyph *glyph = &s->glyphs[i];
+            glyph->uv_min = (Vec2){
+                ((float)r.x) / ((float)s->atlas_w),
+                ((float)r.y) / ((float)s->atlas_h)
+            };
+
+            glyph->uv_max = (Vec2){
+                ((float)(r.x + r.w)) / ((float)s->atlas_w),
+                ((float)(r.y + r.h)) / ((float)s->atlas_h)
+            };
+        }
+    }
+}
+
+Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const char* font_file_name, u32 *user_codepoints, u32 user_codepoints_count){
+    String result = {};
+    if(!s->lib) return result;
+
+    const char *font_path = font__get_font_path(font_file_name, s->memory);
+
+    if(FT_New_Face(s->lib, font_path, 0, &s->face) != 0){
+        fmt_msg("Error: Unable to load font file {0}. Aborting...\n", fmt_cstr(font_file_name));
+        return result;
+    }
+
+    FT_Set_Pixel_Sizes(s->face, 0, info.height);
+    if(info.stroke > 0){
+        FT_Stroker_New(s->lib, &s->stroker);
+        FT_Stroker_Set(s->stroker, info.stroke*64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+    }
+
+    // See here for a discussion on calculating the line gap:
+    // https://freetype.nongnu.narkive.com/MyeGsd2a/ft-vert-advance-on-line-break
+    // https://stackoverflow.com/a/30793586
+    FT_Face face = s->face;
+    u32 internal_leading = (u32)((face->size->metrics.ascender - face->size->metrics.descender) >> 6) - face->size->metrics.y_ppem;
+    u32 line_gap    = (u32)(face->size->metrics.height) >> 6;
+    u32 cap_height  = (u32)((face->size->metrics.ascender >> 6) - internal_leading);
+    u32 char_height = (u32)(face->bbox.yMax - face->bbox.yMin) >> 6;
+
+    // We need codepoints for both the null glyph ('\0') and space (' '). Prepend these to
+    // the list of codepoints the user passed.
+    u32  codepoints_count = user_codepoints_count + 2;
+    u32 *codepoints = buffer_push_array(u32, s->memory, codepoints_count);
+    codepoints[0] = '\0';
+    codepoints[1] = ' ';
+    memcpy(&codepoints[2], user_codepoints, user_codepoints_count);
+
+    s->font_info  = info;
+    s->codepoints = codepoints;
+    s->glyphs     = buffer_push_array(Font_Glyph, s->memory, codepoints_count);
+    s->glyph_pixels = buffer_push_array(u32*, s->memory, codepoints_count);
+
+    u32 valid_codepoints_count = 0;
+    for_count(u32, i, codepoints_count){
+        if(font__generate_glyph(s, codepoints[i], valid_codepoints_count)){
+            valid_codepoints_count++;
+        }
+    }
+    s->codepoints_count = valid_codepoints_count;
+
+    font__bake_glyphs_to_atlas(s);
+
+    img_save_tga("atlas.tga", s->atlas_w, s->atlas_h, s->atlas, s->memory);
+    img_save_tga("test_glyph.tga", s->glyphs[32].width, s->glyphs[32].height, s->glyph_pixels[32], s->memory);
+
+    // Begin writing the font to memory
+    Buffer memory_before = *s->memory;
+    Font *font = buffer_push_type(Font, s->memory);
+
+    font->header.magic   = Font_File_Magic;
+    font->header.version = Font_File_Version;
+    font->line_gap    = line_gap;
+    font->cap_height  = cap_height;
+    font->char_height = char_height;
+
+    if(s->stroker){
+        FT_Stroker_Done(s->stroker);
+        s->stroker = NULL;
+    }
+    FT_Done_Face(s->face);
 
     return result;
 }

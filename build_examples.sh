@@ -13,7 +13,7 @@ gcc -c $FLAGS ./src/display.c -o ./bin/display.o $LIBS
 #gcc $FLAGS -o ./bin/walk_files examples/walk_files.c
 #gcc $FLAGS -o ./bin/fmt examples/fmt.c
 #gcc $FLAGS -o ./bin/pad examples/pad.c ./bin/display.o $LIBS
-gcc $FLAGS -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype
+gcc $FLAGS -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype -lm
 
 
 

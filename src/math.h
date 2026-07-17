@@ -114,6 +114,7 @@ Ceabed_API Mat4 mat4_translate(Vec3 offset);
 }})
 
 Ceabed_API u32 premultiply_alpha(u32 c);
+Ceabed_API u64 round_up_power_of_two(u64 n);
 Ceabed_API float deg_to_rad(float degrees);
 Ceabed_API Vec3 polar_to_world(Vec3 polar, Vec3 target_pos);
 
