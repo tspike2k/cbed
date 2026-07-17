@@ -292,16 +292,15 @@ static void font__bake_glyphs_to_atlas(Font_Builder *s){
         if(s->glyph_pixels[i]){
             Font_Rect r       = bounds[i];
             u32 *src = s->glyph_pixels[i];
-            /*u32 *dest = &s->atlas[r.x + r.y * s->atlas_w];*/
-            u32 *dest = s->atlas;
-            u32  dest_stride = s->atlas_w - r.x;
+            u32 *dest = &s->atlas[r.x + r.y * s->atlas_w];
+            /*u32 *dest = s->atlas;*/
+            u32  dest_stride = s->atlas_w - r.w;
 
             for_count(u32, y, r.h){
                 for_count(u32, x, r.w){
-                    /**dest++ = *src++;*/
-                    dest[r.x + x + (r.y + y) * s->atlas_w] = src[x + y * r.w];
+                    *dest++ = *src++;
                 }
-                /*dest += dest_stride;*/
+                dest += dest_stride;
             }
 
             Font_Glyph *glyph = &s->glyphs[i];
@@ -350,7 +349,7 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
     u32 *codepoints = buffer_push_array(u32, s->memory, codepoints_count);
     codepoints[0] = '\0';
     codepoints[1] = ' ';
-    memcpy(&codepoints[2], user_codepoints, user_codepoints_count);
+    memcpy(&codepoints[2], user_codepoints, user_codepoints_count*sizeof(u32));
 
     s->font_info  = info;
     s->codepoints = codepoints;
