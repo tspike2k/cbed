@@ -20,6 +20,7 @@ result quickly take effect.
 #include "opengl.c"
 #include "math.c"
 #include "files.c"
+#include "font.c"
 #include "draw.c"
 
 u8 g_memory[4*1024*1024];

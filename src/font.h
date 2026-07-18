@@ -48,6 +48,7 @@ typedef struct{
 
 typedef struct {
     Font_Header header;
+    u32         font_info_offset;
     u32         line_gap;
     u32         cap_height;
     u32         char_height; // NOTE: Maximum character height
@@ -61,7 +62,6 @@ typedef struct {
     u32 		img_height;
     u32		    img_pixels_offset;
     u32		    expected_size; // Expected size of the file. If we load the file and it's less than this, there was some sort of error.
-    u32         font_info_offset;
     u32         reserved[8];
     u32         user_data[8];
 } Font;
@@ -77,6 +77,7 @@ if font->glyphs_count is 0.
 Ceabed_API bool font_is_valid(Font* font, size_t memory_size);
 Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint);
 Ceabed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint);
+Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len);
 
 ////
 //

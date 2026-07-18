@@ -49,6 +49,24 @@ Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
     return result;
 }
 
+Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len){
+    if(font->glyphs_count == 0) return 0;
+
+    u32 prev_codepoint = 0;
+    f32 result = 0;
+    for_count(size_t, i, text_len){
+        char c = text[i];
+        // TODO: Account for line endings?
+
+        Font_Glyph *glyph   = font_get_glyph(font, c);
+        float kerning = font_get_kerning_advance(font, prev_codepoint, c);
+        result += kerning;
+        result += (float)glyph->advance;
+        prev_codepoint = c;
+    }
+    return result;
+}
+
 #ifdef FONT_BUILDER
 
 #include <ft2build.h>
@@ -362,6 +380,8 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
 
     u32 valid_codepoints_count = 0;
     for_count(u32, i, codepoints_count){
+        // TODO: Since Freetype generates null glyphs for glyphs that cannot be found,
+        // can we remove this check completely?
         if(font__generate_glyph(s, codepoints[i], valid_codepoints_count)){
             valid_codepoints_count++;
         }
@@ -374,12 +394,35 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
 
     // Begin writing the font to memory
     Font *font = buffer_push_type(Font, s->memory);
-
     font->header.magic   = Font_File_Magic;
     font->header.version = Font_File_Version;
-    font->line_gap    = line_gap;
-    font->cap_height  = cap_height;
-    font->char_height = char_height;
+    font->line_gap     = line_gap;
+    font->cap_height   = cap_height;
+    font->char_height  = char_height;
+
+    void *font_section = (void *)font;
+
+    void *font_info_section = buffer_write_type(s->memory, &info);
+    font->font_info_offset = font_info_section - font_section;
+    buffer_write(s->memory, font_file_name, strlen(font_file_name));
+    buffer_write(s->memory, "\0", 1);
+
+    font->glyphs_count = s->codepoints_count;
+    void *font_codepoints_section = buffer_write(s->memory, s->codepoints, sizeof(u32)*font->glyphs_count);
+    void *font_glyphs_section     = buffer_write(s->memory, s->glyphs, sizeof(Font_Glyph)*font->glyphs_count);
+    font->glyphs_codepoint_offset = font_codepoints_section - font_section;
+    font->glyphs_offset = font_glyphs_section - font_section;
+
+    // TODO: Generate and store kerning pairs!
+
+    font->img_width  = s->atlas_w;
+    font->img_height = s->atlas_h;
+    void *font_pixels_section = buffer_write(s->memory, s->atlas, sizeof(u32)*s->atlas_w*s->atlas_h);
+
+    font->img_pixels_offset = font_pixels_section - font_section;
+
+    font->expected_size = font_section - (void *)&s->memory->data[s->memory->used];
+    result = (String){(char *)font_section, font->expected_size};
 
     if(s->stroker){
         FT_Stroker_Done(s->stroker);

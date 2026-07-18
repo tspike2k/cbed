@@ -368,14 +368,21 @@ Ceabed_API void draw_set_shader_2D(){
     cmd->shader = s->shader_default_2d;
 }
 
+static Draw_Texture *draw__get_font_texture_handle(Font *font){
+    Draw_Texture *result = (Draw_Texture *)&font->user_data[0];
+    return result;
+}
+
 Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
     if(font->glyphs_count == 0) return;
+
+    Draw_Texture *texture = draw__get_font_texture_handle(font);
 
     // TODO: Some of these characters won't be rendered (such as space).
     // Shouldn't we subtract them from the layer's vertex buffer and the
     // command's total size?
     Draw_Layer *layer = draw__get_active_layer();
-    Draw_Vertex *v = draw__add_quad_cmd(layer, font->texture, text_len*Draw__Vertex_Per_Quad);
+    Draw_Vertex *v = draw__add_quad_cmd(layer, *texture, text_len*Draw__Vertex_Per_Quad);
 
     Vec2 pen = {floor(baseline.x), floor(baseline.y)};
     u32 prev_codepoint = 0;
@@ -400,28 +407,9 @@ Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text
     }
 }
 
-Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len){
-    if(font->glyphs_count == 0) return 0;
-
-    u32 prev_codepoint = 0;
-    f32 result = 0;
-    for_count(size_t, i, text_len){
-        char c = text[i];
-
-        // TODO: Account for line endings?
-
-        Font_Glyph *glyph   = font_get_glyph(font, c);
-        float kerning = font_get_kerning_advance(font, prev_codepoint, c);
-        result += kerning;
-        result += (float)glyph->advance;
-        prev_codepoint = c;
-    }
-    return result;
-}
-
 Ceabed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds){
     f32 tw = font_get_text_width(font, text, text_len);
-    auto h = font->metrics->cap_height;
+    auto h = font->cap_height;
 
     Vec2 result;
     switch(font_align){
@@ -478,33 +466,6 @@ Ceabed_API void draw_set_culling(float z_near, float z_far){
     layer->z_far  = z_far;
 }
 
-//
-// Font
-//
-
-Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
-    Font_Glyph* result = &font->null_glyph;
-    for(u32 i = 0; i < font->glyphs_count; i++){
-        if(font->glyph_codepoints[i] == codepoint){
-            result = &font->glyphs[i];
-            break;
-        }
-    }
-    return result;
-}
-
-Ceabed_API float font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
-    float result = 0;
-    for(u32 i = 0; i < font->kerning_pairs_count; i++){
-        Font_Kerning *entry = &font->kerning_pairs[i];
-        if(entry->a == prev_codepoint && entry->b == codepoint){
-            result = font->kerning_advance[i];
-            break;
-        }
-    }
-    return result;
-}
-
 static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
     void *result = NULL;
     if(buffer->used + bytes <= buffer->size){
@@ -518,11 +479,13 @@ static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
     return result;
 }
 
-Ceabed_API bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size){
+Ceabed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size){
     Buffer buffer = {memory, memory_size};
     bool error = false;
-    font->texture = Draw_Texture_Null;
 
+    Font *result = (Font*)memory;
+
+#if 0
     Font_Header *header = (Font_Header*)draw__read_bytes(&buffer, sizeof(Font_Header), &error);
     if(!header){
         fmt_msg("Memory for font {0} is too short.\n", fmt_cstr(font_name));
@@ -610,6 +573,8 @@ Ceabed_API bool font_load_from_memory(Font* font, const char* font_name, void *m
     }
 
     return !error;
+#endif
+    return result;
 }
 
 #ifdef OS_Linux

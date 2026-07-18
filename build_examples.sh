@@ -17,7 +17,7 @@ gcc $FLAGS -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.
 
 
 
-#gcc -g -Wall -Isrc -shared -nodefaultlibs -nostartfiles -o ./bin/libhotload.so examples/hotload_lib.c
+gcc -g -Wall -Isrc -shared -nodefaultlibs -nostartfiles -o ./bin/libhotload.so examples/hotload_lib.c
 
 # NOTE: The code hotloading example is compiled differently than the others because it has
 # unusual requirements. In typical scenarios a library provides global symbols and the base

@@ -153,13 +153,14 @@ Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes){
     return result;
 }
 
-Ceabed_API void buffer_write(Buffer *buffer, const void* data, size_t data_size){
+Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
+    void *result = &buffer->data[buffer->used];
     if(data_size > 0){
         assert(buffer->used + data_size <= buffer->size);
-        void *dest = &buffer->data[buffer->used];
-        memcpy(dest, data, data_size);
+        memcpy(result, data, data_size);
         buffer->used += data_size;
     }
+    return result;
 }
 
 Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes){

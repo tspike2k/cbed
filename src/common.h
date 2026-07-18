@@ -111,7 +111,7 @@ Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes);
 // that by using asserts, but this doesn't address the issue past debug builds. Perhaps we
 // should pass a boolean flag to indicate success or failure?
 #define buffer_write_type(buffer, t) buffer_write(buffer, t, sizeof(*t))
-Ceabed_API void buffer_write(Buffer *buffer, const void* data, size_t data_size);
+Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
 
 #define buffer_read_type(T, buffer) (T*)buffer_read(buffer, sizeof(T))
 #define buffer_read_array(T, buffer, count) (T*)buffer_read(buffer, sizeof(T)*(count))

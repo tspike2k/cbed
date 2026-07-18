@@ -14,6 +14,7 @@
 
 #include "common.h"
 #include "math.h"
+#include "font.h"
 
 // User configures the values between Draw_Layer_None and Draw_Layer_Total
 enum{
@@ -80,90 +81,14 @@ Ceabed_API void draw_destroy_texture(Draw_Texture *texture);
 // Fonts
 //
 
-typedef struct {
-    uint32_t height;
-    uint32_t line_gap;
-    uint32_t cap_height;
-    uint32_t char_height; // NOTE: Maximum character height
-} Font_Metrics;
-
-typedef struct{
-    uint32_t width;
-    uint32_t height;
-    uint32_t advance;
-    Vec2 offset;
-    Vec2 uv_min;
-    Vec2 uv_max;
-} Font_Glyph;
-
-typedef struct{
-    uint32_t a;
-    uint32_t b;
-} Font_Kerning;
-
-// TODO: I'm of two minds on how to handle fonts in the game. On the one hand, we could do like
-// we've done in earlier projects. We load the font file into memory, extract and copy the data
-// from the file into permanent memory. Another option is to load the entire file into memory
-// for the duration of the program and have the Font type act as a "window" into that file's
-// memory. Advantages to the second approach are faster loading times. Disadvantages are platform
-// alignment requirements.
-
-typedef struct{
-    Font_Metrics  *metrics;
-    uint32_t       glyphs_count;
-    uint32_t      *glyph_codepoints;
-    Font_Glyph    *glyphs;
-    Font_Glyph     null_glyph;
-
-    uint32_t      kerning_pairs_count;
-    Font_Kerning *kerning_pairs;
-    float        *kerning_advance;
-
-    uint32_t  pixels_width;
-    uint32_t  pixels_height;
-    uint32_t *pixels;
-
-    // "Blank" uvs allow the sprite batcher to draw solid colored quads without having to
-    // switch textures.
-    Vec2      blank_uv_min;
-    Vec2      blank_uv_max;
-
-    uint64_t texture;
-} Font;
-
-#define Font_File_Magic (('F' << 0) | ('o' << 8) | ('n' << 16) | ('t' << 24))
-#define Font_File_Version 1
-
-enum{
-    Font_Section_None,
-    Font_Section_Metrics,
-    Font_Section_Glyphs,
-    Font_Section_Kerning,
-    Font_Section_Pixels,
-    Font_Section_Blank_UVs
-};
-
-typedef struct {
-    uint32_t magic;
-    uint32_t version;
-} Font_Header;
-
-typedef struct {
-    uint32_t type;
-    uint32_t size;
-} Font_Section;
-
 typedef enum{
     Font_Align_Left,
     Font_Align_Center,
     Font_Align_Right,
 } Font_Align;
 
-Ceabed_API bool font_load_from_memory(Font* font, const char* font_name, void *memory, size_t memory_size);
-Ceabed_API Font_Glyph* font_get_glyph(Font* font, uint32_t codepoint);
-Ceabed_API float font_get_kerning_advance(Font* font, uint32_t prev_codepoint, uint32_t codepoint);
+Ceabed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size);
 Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len);
-Ceabed_API f32  font_get_text_width(Font* font, const char *text, size_t text_len);
 Ceabed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds);
 
 #endif // CEABED_DRAW_H

@@ -16,7 +16,7 @@ See hotload.c for an explanation of this example.
 Ceabed_API bool hotload_test(Buffer *memory){
     bool running = true;
 
-    size_t memory_restore = buffer_frame_begin(memory);
+    Buffer memory_restore = *memory;
 
     Event event;
     while(display_next_event(&event)){
@@ -49,7 +49,7 @@ Ceabed_API bool hotload_test(Buffer *memory){
     display_flip_backbuffer();
     display_end_frame();
 
-    buffer_frame_end(memory, memory_restore);
+    *memory = memory_restore;
 
     return running;
 }
