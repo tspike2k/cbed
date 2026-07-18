@@ -12,7 +12,7 @@ int main(){
     Buffer buffer = {memory, Array_Len(memory)};
     const char *root_path = get_executable_path(&buffer);
     buffer.used--; // Rewind enough to write over the null-terminator
-    buffer_put(&buffer, "..", 3);
+    buffer_put_text(&buffer, "..", 3);
     buffer_null_terminate(&buffer);
 
     /*fmt_msg_puts(root_path);*/

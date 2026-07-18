@@ -449,11 +449,10 @@ Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
     assert(s->path_used > 1);
     assert(s->path[s->path_used-2] == '/');
 
-    char *base = (char*)&buffer->data[buffer->used];
-    buffer_put(buffer, s->path, s->path_used-1);
-    buffer_put(buffer, s->file_name, strlen(s->file_name));
-    buffer_null_terminate(buffer);
-    String result = {base, ((char*)&buffer->data[buffer->used]) - base};
+    char *path_start = buffer_put_text(buffer, s->path, s->path_used-1);
+    buffer_put_text(buffer, s->file_name, strlen(s->file_name));
+    char * path_end = buffer_null_terminate(buffer);
+    String result = {path_start, path_end - path_start};
 
     return result;
 }

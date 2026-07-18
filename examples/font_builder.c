@@ -18,7 +18,7 @@ int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
     Font_Info font_info = {
-        .height       = 18,
+        .height       = 52,
         .stroke       = 1,
         .fill_color   = 0xffffffff,
         .stroke_color = 0xffff0000

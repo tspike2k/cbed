@@ -103,26 +103,25 @@ typedef struct {
     size_t used;
 } Buffer;
 
-#define Scratch_Begin(scratch) size_t scratch_marker = buffer_frame_begin(scratch)
-#define Scratch_End(scratch) buffer_frame_end(scratch, scratch_marker)
-
-Ceabed_API size_t buffer_frame_begin(Buffer *buffer);
-Ceabed_API void   buffer_frame_end(Buffer* buffer, size_t marker);
-
 #define buffer_push_array(T, buffer, count) (T*)buffer_push_bytes(buffer, sizeof(T)*(count))
 #define buffer_push_type(T, buffer) (T*)buffer_push_bytes(buffer, sizeof(T))
 Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes);
 
-#define buffer_write_text(buffer, text, text_size) (char*)buffer_write(buffer, text, text_size)
+// TODO: Reads and writes can fail if the buffer is too small. Right now we're gaurding against
+// that by using asserts, but this doesn't address the issue past debug builds. Perhaps we
+// should pass a boolean flag to indicate success or failure?
 #define buffer_write_type(buffer, t) buffer_write(buffer, t, sizeof(*t))
-Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
+Ceabed_API void buffer_write(Buffer *buffer, const void* data, size_t data_size);
 
 #define buffer_read_type(T, buffer) (T*)buffer_read(buffer, sizeof(T))
 #define buffer_read_array(T, buffer, count) (T*)buffer_read(buffer, sizeof(T)*(count))
 Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes);
 
-Ceabed_API void buffer_put(Buffer *buffer, const char *text, size_t text_len);
-Ceabed_API void buffer_null_terminate(Buffer* buffer);
+// NOTE: The buffer_put_text function truncates the result if no more roo exists in the buffer.
+// When concatonating strings, calling buffer_null_terminate will ensure the text is null
+// terminated, even if the string had been truncated.
+Ceabed_API char *buffer_put_text(Buffer *buffer, const char *text, size_t text_len);
+Ceabed_API char *buffer_null_terminate(Buffer* buffer);
 
 //
 // Strings

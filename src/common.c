@@ -153,12 +153,13 @@ Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes){
     return result;
 }
 
-Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
-    void *result = buffer_push_bytes(buffer, data_size);
-    if(result){
-        memcpy(result, data, data_size);
+Ceabed_API void buffer_write(Buffer *buffer, const void* data, size_t data_size){
+    if(data_size > 0){
+        assert(buffer->used + data_size <= buffer->size);
+        void *dest = &buffer->data[buffer->used];
+        memcpy(dest, data, data_size);
+        buffer->used += data_size;
     }
-    return result;
 }
 
 Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes){
@@ -170,17 +171,19 @@ Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes){
     return result;
 }
 
-Ceabed_API void buffer_put(Buffer *buffer, const char* text, size_t text_len){
+Ceabed_API char *buffer_put_text(Buffer *buffer, const char* text, size_t text_len){
+    char *result = (char *)&buffer->data[buffer->used];
     if(text_len){
         size_t availible = buffer->size - buffer->used;
         size_t to_copy = text_len < availible ? text_len : availible;
         memcpy(&buffer->data[buffer->used], text, to_copy);
         buffer->used += to_copy;
     }
+    return result;
 }
 
-Ceabed_API void buffer_null_terminate(Buffer* buffer){
-    assert(buffer->size);
+Ceabed_API char *buffer_null_terminate(Buffer* buffer){
+    char *result = (char *)&buffer->data[buffer->used];
     if(buffer->used < buffer->size){
         buffer->data[buffer->used] = 0;
         buffer->used++;
@@ -188,6 +191,7 @@ Ceabed_API void buffer_null_terminate(Buffer* buffer){
     else{
         buffer->data[buffer->used-1] = 0;
     }
+    return result;
 }
 
 //
@@ -407,7 +411,7 @@ Ceabed_API void fmt_msg_puts(const char* msg){
 }
 
 static void fmt__buffer_put(const char* text, size_t text_count, void *dest){
-    buffer_put((Buffer*)dest, text, text_count);
+    buffer_write((Buffer*)dest, text, text_count);
 }
 
 static void fmt__advance(Fmt_Parser *parser){

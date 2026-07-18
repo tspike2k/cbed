@@ -139,7 +139,7 @@ Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data
 }
 
 Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *scratch){
-    Scratch_Begin(scratch);
+    Buffer scratch_restore = *scratch;
 
     Img_Pixels result = {};
     String contents = file_read_into_memory(file_name, scratch);
@@ -147,7 +147,7 @@ Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *
         result = img_load_tga_from_memory(file_name, contents.text, contents.size, dest);
     }
 
-    Scratch_End(scratch);
+    *scratch = scratch_restore;
     return result;
 }
 

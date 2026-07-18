@@ -86,9 +86,9 @@ static const char *font__get_font_path(const char *font_file_name, Buffer* memor
     // TODO: Ideally, we should scan each directory listed in Font_Directories. That will require
     // us to write a directory scanner. In the meantime, we'll hardcode the path.
     const char* path = "/usr/share/fonts/TTF/";
-    char* s = buffer_write_text(memory, path, strlen(path));
-    buffer_write_text(memory, font_file_name, strlen(font_file_name));
-    buffer_write_text(memory, "\0", 1);
+    char* s = buffer_put_text(memory, path, strlen(path));
+    buffer_put_text(memory, font_file_name, strlen(font_file_name));
+    buffer_null_terminate(memory);
     result = s;
 
     return result;
@@ -239,21 +239,22 @@ static bool font__generate_glyph(Font_Builder *s, u32 codepoint, u32 index){
 }
 
 static void font__bake_glyphs_to_atlas(Font_Builder *s){
-    u32 total_w = 0;
-    u32 total_h = 0;
+    // TODO: It might be better to use a bin-packing algorithm that grows the canvas if needed,
+    // like the following:
+    // https://jakesgordon.com/writing/bin-packing/
     u32 padding = 1;
 
+    u32 max_w = 0;
     // Guess canvas size
     for_count(u32, i, s->codepoints_count){
         if(s->glyph_pixels[i]){
             Font_Glyph *glyph = &s->glyphs[i];
-            total_w += glyph->width  + padding*2;
-            total_h += glyph->height + padding*2;
+            max_w = MAX(max_w, glyph->width + padding*2);
         }
     }
 
-    u32 target_w = round_up_power_of_two(sqrt(total_w*total_h));
-    u32 target_h = target_w;
+    u32 target_w = round_up_power_of_two(sqrt(s->codepoints_count) * max_w); // TODO: Try rounding down instead
+    u32 target_h = 0; // NOTE: The height is chosen dynamically
 
     // Layout glyphs on canvas (do this as a unique pass in case we later add expanding the canvas)
     Font_Rect *bounds = buffer_push_array(Font_Rect, s->memory, s->codepoints_count);
@@ -270,7 +271,7 @@ static void font__bake_glyphs_to_atlas(Font_Builder *s){
                 line_height = 0;
             }
             assert(pen_x + glyph->width < target_w - padding);
-            assert(pen_y + glyph->height < target_h - padding);
+            /*assert(pen_y + glyph->height < target_h - padding);*/
 
             Font_Rect *r = &bounds[i];
             r->x = pen_x;
@@ -280,8 +281,11 @@ static void font__bake_glyphs_to_atlas(Font_Builder *s){
 
             pen_x += r->w + padding;
             line_height = MAX(r->h, line_height);
+
+            target_h = MAX(line_height, pen_y + r->h + padding);
         }
     }
+    target_h = round_up_power_of_two(target_h);
 
     s->atlas_w = target_w;
     s->atlas_h = target_h;
@@ -367,10 +371,8 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
     font__bake_glyphs_to_atlas(s);
 
     img_save_tga("atlas.tga", s->atlas_w, s->atlas_h, s->atlas, s->memory);
-    img_save_tga("test_glyph.tga", s->glyphs[32].width, s->glyphs[32].height, s->glyph_pixels[32], s->memory);
 
     // Begin writing the font to memory
-    Buffer memory_before = *s->memory;
     Font *font = buffer_push_type(Font, s->memory);
 
     font->header.magic   = Font_File_Magic;

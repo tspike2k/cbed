@@ -443,6 +443,7 @@ Ceabed_API Mat4 mat4_rot_z(float angle_rad){
 }
 
 Ceabed_API u64 round_up_power_of_two(u64 n){
+    // TODO: Use the modern way, which uses __builtin_clz.
     // NOTE: Adapted from here:
     // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
     n--;
@@ -457,7 +458,6 @@ Ceabed_API float deg_to_rad(float degrees){
     float result = degrees*(PI/180.0f);
     return result;
 }
-
 
 Ceabed_API Vec3 polar_to_world(Vec3 polar, Vec3 target_pos){
     float phi   = polar.x * (PI/180.0f);
