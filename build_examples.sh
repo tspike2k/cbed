@@ -3,21 +3,16 @@ FLAGS='-g -Wall -Wno-unused-function -Wno-unused-variable -Isrc -L./bin -fvisibi
 LIBS='-lX11 -lXi -lGL -lm '
 
 gcc -c $FLAGS ./src/display.c -o ./bin/display.o $LIBS
-#ar rcs ./bin/libdisplay.a ./bin/display.o
 
-#gcc $FLAGS -c ./src/display.c -o ./bin/display.o $LIBS
-#gcc $FLAGS -o ./bin/rect examples/rect.c ./bin/display.o $LIBS
-#gcc $FLAGS -o ./bin/box examples/box.c ./bin/display.o $LIBS
-#gcc $FLAGS -o ./bin/tga examples/tga.c
-#gcc $FLAGS -o ./bin/cat examples/cat.c
-#gcc $FLAGS -o ./bin/walk_files examples/walk_files.c
-#gcc $FLAGS -o ./bin/fmt examples/fmt.c
-#gcc $FLAGS -o ./bin/pad examples/pad.c ./bin/display.o $LIBS
+gcc $FLAGS -o ./bin/rect examples/rect.c ./bin/display.o $LIBS
+gcc $FLAGS -o ./bin/box examples/box.c ./bin/display.o $LIBS
+gcc $FLAGS -o ./bin/tga examples/tga.c
+gcc $FLAGS -o ./bin/cat examples/cat.c
+gcc $FLAGS -o ./bin/walk_files examples/walk_files.c
+gcc $FLAGS -o ./bin/fmt examples/fmt.c
+gcc $FLAGS -o ./bin/pad examples/pad.c ./bin/display.o $LIBS
 gcc $FLAGS -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype -lm
 
-
-
-gcc -g -Wall -Isrc -shared -nodefaultlibs -nostartfiles -o ./bin/libhotload.so examples/hotload_lib.c
 
 # NOTE: The code hotloading example is compiled differently than the others because it has
 # unusual requirements. In typical scenarios a library provides global symbols and the base
@@ -32,6 +27,8 @@ gcc -g -Wall -Isrc -shared -nodefaultlibs -nostartfiles -o ./bin/libhotload.so e
 # be worth checking to see how well ceabed works as a shared library anyway.
 #
 # To check which symbols are in the dynamic symbol talble, use 'nm -D <binary_name>'.
+gcc -g -Wall -Isrc -shared -nodefaultlibs -nostartfiles -o ./bin/libhotload.so examples/hotload_lib.c
+
 #gcc $FLAGS -DCeabed_API='__attribute__((visibility("default")))' -shared -o ./bin/libdisplay.so ./src/display.c $LIBS
 #gcc $FLAGS -rdynamic -o ./bin/hotload examples/hotload.c  $LIBS -L./bin -ldisplay -Wl,-rpath,'$ORIGIN'
 gcc $FLAGS -rdynamic -o ./bin/hotload examples/hotload.c ./bin/display.o $LIBS

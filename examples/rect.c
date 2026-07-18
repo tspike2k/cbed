@@ -9,10 +9,11 @@
 #include "display.h"
 #include "opengl.c"
 #include "math.c"
+#include "font.c"
 #include "files.c"
 #include "draw.c"
 
-u8 g_memory[4*1024*1024];
+u8 g_memory[8*1024*1024];
 
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
@@ -21,12 +22,9 @@ int main(){
     bool running = display_begin("Box", 1024, 768, display_flags)
         && draw_begin(&memory);
 
-    const char *font_file_name = "./bin/font.fnt";
+    const char *font_file_name = "./bin/font2.fnt";
     String font_memory = file_read_into_memory(font_file_name, &memory);
-    Font test_font;
-    if(!font_load_from_memory(&test_font, font_file_name, font_memory.text, font_memory.size)){
-        fmt_msg("Error loading font.\n");
-    }
+    Font *test_font = draw_load_font(font_file_name, font_memory.text, font_memory.size);
 
     while(running){
         Event event;
@@ -56,7 +54,7 @@ int main(){
         draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 100, 100), 0xff00ffff);
 
         const char *msg = "Hello, world!";
-        draw_text((Vec2){0, 0}, 0xffff00ff, &test_font, msg, strlen(msg));
+        draw_text((Vec2){0, 0}, 0xffff00ff, test_font, msg, strlen(msg));
 
         draw_frame_end();
 

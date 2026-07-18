@@ -374,7 +374,7 @@ static Draw_Texture *draw__get_font_texture_handle(Font *font){
 }
 
 Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
-    if(font->glyphs_count == 0) return;
+    if(!font) return;
 
     Draw_Texture *texture = draw__get_font_texture_handle(font);
 
@@ -483,98 +483,36 @@ Ceabed_API Font *draw_load_font(const char* font_name, void *memory, size_t memo
     Buffer buffer = {memory, memory_size};
     bool error = false;
 
-    Font *result = (Font*)memory;
-
-#if 0
-    Font_Header *header = (Font_Header*)draw__read_bytes(&buffer, sizeof(Font_Header), &error);
-    if(!header){
+    Font *font = (Font*)memory;
+    if(memory_size < sizeof(Font)){
         fmt_msg("Memory for font {0} is too short.\n", fmt_cstr(font_name));
-        return false;
+        return NULL;
     }
 
-    if(header->magic != Font_File_Magic){
+    if(font->header.magic != Font_File_Magic){
         fmt_msg("Unexpected magic in file header for font {0}\n", fmt_cstr(font_name));
-        return false;
+        return NULL;
     }
 
-    if(header->version != Font_File_Version){
+    if(font->header.version != Font_File_Version){
         fmt_msg(
             "Unsupported file version for font {0}. Expected {1} but got {2} instead.\n",
-            fmt_cstr(font_name), fmt_i(Font_File_Version), fmt_i(header->version)
+            fmt_cstr(font_name), fmt_i(Font_File_Version), fmt_i(font->header.version)
         );
-        return false;
+        return NULL;
     }
 
-    while(buffer.used < buffer.size && !error){
-        Font_Section *section = (Font_Section*)draw__read_bytes(&buffer, sizeof(Font_Section), &error);
-        if(!section){
-            fmt_msg("Error! Unable to read next section for font {0}.\n", fmt_cstr(font_name));
-            break;
-        }
-
-        size_t payload_size = section->size - sizeof(Font_Section);
-        Buffer payload = {
-            draw__read_bytes(&buffer, payload_size, &error),
-            payload_size
-        };
-        if(!payload.data){
-            fmt_msg("Error! Payload of section type {1} is too short for font {0}.\n", fmt_cstr(font_name), fmt_i(section->type));
-            break;
-        }
-
-        switch(section->type){
-            case Font_Section_Metrics:{
-                font->metrics = (Font_Metrics*)draw__read_bytes(&payload, sizeof(Font_Metrics), &error);
-            } break;
-
-            case Font_Section_Glyphs:{
-                Font_Glyph *null_glyph = draw__read_bytes(&payload, sizeof(Font_Glyph), &error);
-                u32 *count = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
-                if(null_glyph && count){
-                    font->null_glyph = *null_glyph;
-                    font->glyphs_count = *count;
-                    font->glyph_codepoints = (u32*)draw__read_bytes(
-                        &payload, sizeof(u32) * font->glyphs_count, &error
-                    );
-                    font->glyphs = (Font_Glyph*)draw__read_bytes(
-                        &payload, sizeof(Font_Glyph) * font->glyphs_count, &error
-                    );
-                }
-            } break;
-
-            case Font_Section_Kerning:{
-                u32 *count = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
-                if(count){
-                    font->kerning_pairs = (Font_Kerning*)draw__read_bytes(&payload, sizeof(Font_Kerning), &error);
-                    font->kerning_advance = (f32*)draw__read_bytes(&payload, sizeof(f32), &error);
-                }
-            } break;
-
-            case Font_Section_Pixels:{
-                u32 *w = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
-                u32 *h = (u32*)draw__read_bytes(&payload, sizeof(u32), &error);
-                if(w && h){
-                    font->pixels_width  = *w;
-                    font->pixels_height = *h;
-                    u32 total_pixels = font->pixels_width*font->pixels_height;
-                    font->pixels = (u32*)draw__read_bytes(&payload, sizeof(u32)*total_pixels, &error);
-
-                    font->texture = draw_create_texture(*w, *h, font->pixels, 0);
-                }
-            } break;
-
-            case Font_Section_Blank_UVs:
-                continue;
-        }
-
-        if(error){
-            fmt_msg("Error! Section type {1} for font {0} is malformd.\n", fmt_cstr(font_name), fmt_i(section->type));
-        }
+    if(memory_size < font->expected_size){
+        fmt_msg("Memory for font {0} appears to be truncated.\n", fmt_cstr(font_name));
+        return NULL;
     }
 
-    return !error;
-#endif
-    return result;
+    Draw_Texture *texture = draw__get_font_texture_handle(font);
+    u8 *font_base = (u8 *)font;
+    u32 *pixels = (u32 *)&font_base[font->img_pixels_offset];
+
+    *texture = draw_create_texture(font->img_width, font->img_height, pixels, 0);
+    return font;
 }
 
 #ifdef OS_Linux

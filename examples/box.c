@@ -10,6 +10,7 @@
 #include "display.h"
 #include "opengl.c"
 #include "math.c"
+#include "font.c"
 #include "files.c"
 #include "draw.c"
 

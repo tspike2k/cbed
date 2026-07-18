@@ -421,7 +421,8 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
 
     font->img_pixels_offset = font_pixels_section - font_section;
 
-    font->expected_size = font_section - (void *)&s->memory->data[s->memory->used];
+    void *buffer_end = (void *)&s->memory->data[s->memory->used];
+    font->expected_size = buffer_end - font_section;
     result = (String){(char *)font_section, font->expected_size};
 
     if(s->stroker){
