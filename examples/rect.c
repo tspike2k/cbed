@@ -22,7 +22,7 @@ int main(){
     bool running = display_begin("Box", 1024, 768, display_flags)
         && draw_begin(&memory);
 
-    const char *font_file_name = "./bin/font2.fnt";
+    const char *font_file_name = "./bin/font.fnt";
     String font_memory = file_read_into_memory(font_file_name, &memory);
     Font *test_font = draw_load_font(font_file_name, font_memory.text, font_memory.size);
 

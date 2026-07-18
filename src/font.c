@@ -373,20 +373,15 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
     codepoints[1] = ' ';
     memcpy(&codepoints[2], user_codepoints, user_codepoints_count*sizeof(u32));
 
-    s->font_info  = info;
-    s->codepoints = codepoints;
-    s->glyphs     = buffer_push_array(Font_Glyph, s->memory, codepoints_count);
-    s->glyph_pixels = buffer_push_array(u32*, s->memory, codepoints_count);
+    s->font_info        = info;
+    s->codepoints_count = codepoints_count;
+    s->codepoints       = codepoints;
+    s->glyphs           = buffer_push_array(Font_Glyph, s->memory, codepoints_count);
+    s->glyph_pixels     = buffer_push_array(u32*, s->memory, codepoints_count);
 
-    u32 valid_codepoints_count = 0;
     for_count(u32, i, codepoints_count){
-        // TODO: Since Freetype generates null glyphs for glyphs that cannot be found,
-        // can we remove this check completely?
-        if(font__generate_glyph(s, codepoints[i], valid_codepoints_count)){
-            valid_codepoints_count++;
-        }
+        font__generate_glyph(s, codepoints[i], i);
     }
-    s->codepoints_count = valid_codepoints_count;
 
     font__bake_glyphs_to_atlas(s);
 
@@ -414,6 +409,33 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
     font->glyphs_offset = font_glyphs_section - font_section;
 
     // TODO: Generate and store kerning pairs!
+
+    u32 kerning_pairs_count = (codepoints_count-1)*(codepoints_count-1); // NOTE: Ignore the null glyph.
+    Font_Kerning_Pair *kerning_pairs = buffer_push_array(Font_Kerning_Pair, s->memory, kerning_pairs_count);
+    f32 *kerning_advance = buffer_push_array(f32, s->memory, kerning_pairs_count);
+
+    u32 kerning_index = 0;
+    for(u32 a_index = 1; a_index < codepoints_count; a_index++){
+        for(u32 b_index = 1; b_index < codepoints_count; b_index++){
+            u32 codepoint_a = s->codepoints[a_index];
+            u32 codepoint_b = s->codepoints[b_index];
+
+            u32 glyph_index_a = FT_Get_Char_Index(s->face, codepoint_a);
+            u32 glyph_index_b = FT_Get_Char_Index(s->face, codepoint_b);
+
+            FT_Vector kerning = {0, 0};
+            FT_Get_Kerning(s->face, glyph_index_a, glyph_index_b, FT_KERNING_DEFAULT, &kerning);
+
+            assert(kerning_index < kerning_pairs_count);
+            kerning_pairs[kerning_index]   = (Font_Kerning_Pair){codepoint_a, codepoint_b};
+            kerning_advance[kerning_index] = (kerning.x >> 6);
+            kerning_index++;
+        }
+    }
+
+    font->kerning_pairs_count = kerning_pairs_count;
+    font->kerning_pairs_offset = ((void *)kerning_pairs) - font_section;
+    font->kerning_advance_offset = ((void *)kerning_advance) - font_section;
 
     font->img_width  = s->atlas_w;
     font->img_height = s->atlas_h;

@@ -35,7 +35,7 @@ int main(){
 
     String dest = font_builder_generate(builder, font_info, "DejaVuSerif.ttf", &codepoints[0], Array_Len(codepoints));
     if(dest.size){
-        file_write_from_memory("./bin/font2.fnt", dest.text, dest.size);
+        file_write_from_memory("./bin/font.fnt", dest.text, dest.size);
     }
 
     font_builder_end(builder);
