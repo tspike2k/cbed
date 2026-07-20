@@ -14,6 +14,15 @@ License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 
 u8 g_memory[32*1024*1204];
 
+static void print_font_info(void *memory){
+    Font *font = (Font *)memory;
+    u8 *font_base = (u8 *)memory;
+
+    Font_Info *info = (Font_Info *)&font_base[font->font_info_offset];
+    const char *font_name = (char *)&font_base[font->font_info_offset + sizeof(Font_Info)];
+    printf("%s (%d)\n", font_name, info->height);
+}
+
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
@@ -21,7 +30,7 @@ int main(){
         .height       = 18,
         .stroke       = 1,
         .fill_color   = 0xffffffff,
-        .stroke_color = 0xffff0000
+        .stroke_color = 0xff444444
     };
 
     char min_char = '!';
@@ -36,6 +45,18 @@ int main(){
     String dest = font_builder_generate(builder, font_info, "DejaVuSerif.ttf", &codepoints[0], Array_Len(codepoints));
     if(dest.size){
         file_write_from_memory("./bin/font.fnt", dest.text, dest.size);
+        print_font_info(dest.text);
+    }
+
+    font_info = (Font_Info){
+        .height       = 48,
+        .fill_color   = 0xffffffff,
+    };
+
+    dest = font_builder_generate(builder, font_info, "LiberationSans-Bold.ttf", &codepoints[0], Array_Len(codepoints));
+    if(dest.size){
+        file_write_from_memory("./bin/font_big.fnt", dest.text, dest.size);
+        print_font_info(dest.text);
     }
 
     font_builder_end(builder);

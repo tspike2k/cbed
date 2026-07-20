@@ -24,7 +24,7 @@ typedef struct{
     u32 stroke;
     u32 fill_color;
     u32 stroke_color;
-    char font_name[1]; // NOTE: This field is ignored by font_generate; no need to set it.
+    u32 reserved[4];
 } Font_Info;
 
 typedef struct{

@@ -15,6 +15,15 @@
 
 u8 g_memory[8*1024*1024];
 
+static void print_font_info(void *memory){
+    Font *font = (Font *)memory;
+    u8 *font_base = (u8 *)memory;
+
+    Font_Info *info = (Font_Info *)&font_base[font->font_info_offset];
+    const char *font_name = (char *)&font_base[font->font_info_offset + sizeof(Font_Info)];
+    printf("%s (%d)\n", font_name, info->height);
+}
+
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
@@ -25,6 +34,8 @@ int main(){
     const char *font_file_name = "./bin/font.fnt";
     String font_memory = file_read_into_memory(font_file_name, &memory);
     Font *test_font = draw_load_font(font_file_name, font_memory.text, font_memory.size);
+
+    print_font_info(test_font);
 
     while(running){
         Event event;

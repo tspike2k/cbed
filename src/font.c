@@ -74,6 +74,7 @@ Cbed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len){
 #include <freetype/ftstroke.h>
 #include "img.h"
 #include "math.h"
+#include "files.h"
 
 struct Font_Builder{
     Buffer*      memory;
@@ -96,18 +97,39 @@ typedef struct{
     u32 x, y, w, h;
 } Font_Rect;
 
+
+#ifdef OS_Linux
+const char * font__search_paths[] ={
+    "/usr/share/fonts",
+};
+#else
+#error No font search paths for target OS.
+#endif
+
 // TODO: Since this is rather nuanced, should we expose this to the user?
 static const char *font__get_font_path(const char *font_file_name, Buffer* memory){
     char *result = NULL;
 
-    /*size_t memory_restore = memory_used;*/
-    // TODO: Ideally, we should scan each directory listed in Font_Directories. That will require
-    // us to write a directory scanner. In the meantime, we'll hardcode the path.
-    const char* path = "/usr/share/fonts/TTF/";
-    char* s = buffer_put_text(memory, path, strlen(path));
-    buffer_put_text(memory, font_file_name, strlen(font_file_name));
-    buffer_null_terminate(memory);
-    result = s;
+    for(u32 i = 0; !result && i < Array_Len(font__search_paths); i++){
+        const char *path = font__search_paths[i];
+
+        File_Walker walker;
+        file_walker_begin(&walker, path);
+        while(file_walker_advance(&walker)){
+            if(walker.file_type == File_Type_Directory){
+                file_walker_enter_directory(&walker);
+            }
+            else if(walker.file_type == File_Type_File){
+                if(strcmp(walker.file_name, font_file_name) == 0){
+                    String path = file_walker_make_path(&walker, memory);
+                    result = path.text;
+                    break;
+                }
+            }
+        }
+
+        file_walker_end(&walker);
+    }
 
     return result;
 }

@@ -49,6 +49,12 @@ typedef double   f64;
   #define Cbed_C_Lib extern
 #endif
 
+#ifdef OS_Linux
+#  define Cbed_Inline inline __attribute__((always_inline))
+#else
+#  define Cbed_Inline inline
+#endif
+
 #ifndef Cbed_API
 #  ifdef OS_Linux
 #    define Cbed_API __attribute__((visibility("default")))

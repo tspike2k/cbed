@@ -14,6 +14,7 @@
 Cbed_API u32 bgra_to_rgba(u32 c);
 Cbed_API u32 rgba_to_bgra(u32 c);
 
+
 typedef struct{
     u32 *data;
     u32 width;
