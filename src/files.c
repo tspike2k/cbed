@@ -199,7 +199,7 @@ Ceabed_API void file_write_from_memory(const char *file_name, void *data, size_t
 
 Ceabed_API String file_read_into_memory(const char *file_name, Buffer *buffer){
     File file;
-    String result = {};
+    String result = {0};
     if(file_open(&file, file_name, File_Flag_Read)){
         size_t size = file_get_size(&file);
         char *contents = (char*)buffer_push_bytes(buffer, size+1);

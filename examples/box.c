@@ -289,7 +289,7 @@ int main(){
 
         t += dt;
 
-        Camera camera = {};
+        Camera camera = {0};
         float z_near = -1000.0f;
         float z_far =   1000.0f;
         set_world_projection(&camera, display.window_width, display.window_height, z_near, z_far);

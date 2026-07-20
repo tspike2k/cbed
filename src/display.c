@@ -366,13 +366,13 @@ static Xlib_Window display__open_window(const char *window_title, XVisualInfo * 
     Xlib *s = &g__display;
 
     // TODO: Find out once and for all what a "visual" and "gc" are and how they relate to software/hardware rendering.
-    Xlib_Window result = {};
+    Xlib_Window result = {0};
 
     // NOTE: Setting the window attribute "bit_gravity" to StaticGravity helps prevent flickering
     // when resizing the window. See here for more information:
     // https://handmade.network/forums/articles/t/2834-tutorial_a_tour_through_xlib_and_related_technologies
     uint32_t attributes_mask = CWEventMask|CWBitGravity|CWBackPixmap;
-    XSetWindowAttributes attributes = {};
+    XSetWindowAttributes attributes = {0};
     attributes.event_mask = FocusChangeMask| ExposureMask | StructureNotifyMask
         | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask
         | PointerMotionMask;
@@ -871,7 +871,7 @@ static bool display__process_event(XEvent *xevt, Event *evt){
 }
 
 Ceabed_API Display_Backbuffer display_get_sw_backbuffer(){
-    Display_Backbuffer result = {};
+    Display_Backbuffer result = {0};
     result.width  = g__display.window.width;
     result.height = g__display.window.height;
     result.pixels = g__display.window.backbuffer_pixels;
@@ -943,7 +943,7 @@ Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t
     // The "screen" is a render target. It seems safe to use the default screen for the given display.
     int default_screen = DefaultScreen(s->display);
 
-    XVisualInfo visual_info = {};
+    XVisualInfo visual_info = {0};
     if(window_flags & Display_Flag_HW_Rendering){
         if(!display__init_glx(&visual_info, default_screen)){
             window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually clear the flag? Get the syntax right!
@@ -1032,7 +1032,7 @@ Ceabed_API void display_end_frame(){
 
 Ceabed_API Display_Info display_get_info(){
     Xlib_Window *window = &g__display.window;
-    Display_Info result = {};
+    Display_Info result = {0};
     result.window_flags  = window->flags;
     result.window_width  = window->width;
     result.window_height = window->height;

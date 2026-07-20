@@ -5,7 +5,10 @@
 //------------------------------------------------------------------------------
 
 /*
-See hotload.c for an explanation of this example.
+While running ./bin/hotload, try editing this file and then saving the changes. The changes
+should take effect rather quickly.
+
+See hotload.c for a deeper explanation of this example.
 */
 
 #define Ceabed_API extern

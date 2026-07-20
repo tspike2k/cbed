@@ -4,6 +4,11 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
+/*
+NOTE: This GUI is very much an early prototype. Not much has been done with it yet and it's very
+likely to have breaking changes.
+*/
+
 #ifndef CEABED_GUI_H
 #define CEABED_GUI_H
 

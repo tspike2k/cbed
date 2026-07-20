@@ -265,7 +265,7 @@ Ceabed_API Obj_Polygon obj_polygon_from_face(Obj_Data *obj, size_t face_index){
     assert(face_index < obj->faces_count);
     Obj__Face *face = &internal->faces[face_index];
 
-    Obj_Polygon result = {};
+    Obj_Polygon result = {0};
     result.vertex_count = 3;
 
     // If the index for the fourth vertex position is non-zero, this means we have quad.

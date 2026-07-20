@@ -74,7 +74,7 @@ int main(){
     file_watcher_begin(&file_watcher, buffer_push_bytes(&memory, 4096), 4096);
     u32 hotload_lib_watcher = file_watcher_add(&file_watcher, "./examples/hotload_lib.c");
 
-    File_Lib app_lib = {};
+    File_Lib app_lib = {0};
     if(compile_and_load(&app_lib) != Hotload_Success){
         running = false;
     }

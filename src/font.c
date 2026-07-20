@@ -340,7 +340,7 @@ static void font__bake_glyphs_to_atlas(Font_Builder *s){
 }
 
 Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const char* font_file_name, u32 *user_codepoints, u32 user_codepoints_count){
-    String result = {};
+    String result = {0};
     if(!s->lib) return result;
 
     const char *font_path = font__get_font_path(font_file_name, s->memory);
@@ -407,8 +407,6 @@ Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const c
     void *font_glyphs_section     = buffer_write(s->memory, s->glyphs, sizeof(Font_Glyph)*font->glyphs_count);
     font->glyphs_codepoint_offset = font_codepoints_section - font_section;
     font->glyphs_offset = font_glyphs_section - font_section;
-
-    // TODO: Generate and store kerning pairs!
 
     u32 kerning_pairs_count = (codepoints_count-1)*(codepoints_count-1); // NOTE: Ignore the null glyph.
     Font_Kerning_Pair *kerning_pairs = buffer_push_array(Font_Kerning_Pair, s->memory, kerning_pairs_count);

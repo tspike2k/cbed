@@ -54,7 +54,7 @@ int main(){
         draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 100, 100), 0xff00ffff);
 
         const char *msg = "Hello, world!";
-        draw_text((Vec2){0, 0}, 0xffff00ff, test_font, msg, strlen(msg));
+        draw_text((Vec2){12, 12}, 0xffff00ff, test_font, msg, strlen(msg));
 
         draw_frame_end();
 

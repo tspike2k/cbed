@@ -85,7 +85,7 @@ static bool img__tga_is_non_interleaved(TGA_Header* header){
 }
 
 Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest){
-    Img_Pixels result = {};
+    Img_Pixels result = {0};
 
     Buffer src = {data, data_size};
     TGA_Header *header = buffer_read_type(TGA_Header, &src);
@@ -141,7 +141,7 @@ Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data
 Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *scratch){
     Buffer scratch_restore = *scratch;
 
-    Img_Pixels result = {};
+    Img_Pixels result = {0};
     String contents = file_read_into_memory(file_name, scratch);
     if(contents.size){
         result = img_load_tga_from_memory(file_name, contents.text, contents.size, dest);

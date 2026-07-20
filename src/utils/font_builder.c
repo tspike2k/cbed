@@ -286,7 +286,7 @@ void end_building_font(Font_Builder* builder, Font_Entry *font_entry){
     // Write the destination file in-place.
     size_t dest_start = builder->memory.used;
 
-    Font_Header header = {};
+    Font_Header header = {0};
     header.magic   = Font_File_Magic;
     header.version = Font_File_Version;
 

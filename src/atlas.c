@@ -7,7 +7,7 @@
 #include "atlas.h"
 
 Ceabed_API Atlas_Packer atlas_packer_begin(Buffer *memory){
-    Atlas_Packer packer = {};
+    Atlas_Packer packer = {0};
     packer.memory = memory;
     return packer;
 }

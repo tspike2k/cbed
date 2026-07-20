@@ -32,21 +32,21 @@ enum{
 };
 
 Ceabed_API Fmt_Arg fmt_i(int64_t value){
-    Fmt_Arg result = {};
+    Fmt_Arg result = {0};
     result.info = Fmt_Type_Signed_Integer;
     result.data_int = value;
     return result;
 }
 
 Ceabed_API Fmt_Arg fmt_f(float value){
-    Fmt_Arg result = {};
+    Fmt_Arg result = {0};
     result.info = Fmt_Type_Float;
     result.data_float = value;
     return result;
 }
 
 Ceabed_API Fmt_Arg fmt_cstr(const char *value){
-    Fmt_Arg result = {};
+    Fmt_Arg result = {0};
     result.info = Fmt_Type_C_String;
     result.data_cstr = value;
     return result;
@@ -111,7 +111,7 @@ static String fmt__s64(char *buffer, size_t buffer_length, int64_t n, uint32_t b
 static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
     char temp_buffer[512];
     size_t buffer_size = Array_Len(temp_buffer);
-    String text = {};
+    String text = {0};
 
     switch(arg.info){
         default: assert(0); break;
@@ -440,7 +440,7 @@ static bool fmt__str_to_u32(String text, u32* value){
 }
 
 Fmt_Parser fmt_parse(const char *fmt_string, size_t fmt_string_len){
-    Fmt_Parser parser = {};
+    Fmt_Parser parser = {0};
     parser.reader = (String){(char*)fmt_string, fmt_string_len};
     return parser;
 }

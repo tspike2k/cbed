@@ -21,7 +21,7 @@ enum{
 };
 
 int main(){
-    Gui gui = {};
+    Gui gui = {0};
     gui_init(&gui);
 
     Buffer memory = {g_memory, Array_Len(g_memory)};

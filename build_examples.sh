@@ -13,7 +13,6 @@ gcc $FLAGS -o ./bin/fmt examples/fmt.c
 gcc $FLAGS -o ./bin/pad examples/pad.c ./bin/display.o $LIBS
 gcc $FLAGS -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype -lm
 
-
 # NOTE: The code hotloading example is compiled differently than the others because it has
 # unusual requirements. In typical scenarios a library provides global symbols and the base
 # executable links against them. In our case, however, we would like to do the opposite;
