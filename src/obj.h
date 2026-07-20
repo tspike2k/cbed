@@ -4,8 +4,8 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_OBJ_H
-#define CEABED_OBJ_H
+#ifndef CBED_OBJ_H
+#define CBED_OBJ_H
 
 #include "common.h"
 #include "math.h"
@@ -37,7 +37,7 @@ struct Obj_Data{
     u8 internal[128];
 };
 
-Ceabed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest, Buffer* scratch);
-Ceabed_API Obj_Polygon obj_polygon_from_face(Obj_Data *obj, size_t face_index);
+Cbed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest, Buffer* scratch);
+Cbed_API Obj_Polygon obj_polygon_from_face(Obj_Data *obj, size_t face_index);
 
-#endif // CEABED_OBJ_H
+#endif // CBED_OBJ_H

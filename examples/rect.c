@@ -19,7 +19,7 @@ int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
     u32 display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Box", 1024, 768, display_flags)
+    bool running = display_begin("Rect", 1024, 768, display_flags)
         && draw_begin(&memory);
 
     const char *font_file_name = "./bin/font.fnt";

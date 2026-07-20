@@ -68,10 +68,10 @@ typedef struct {
     u32 internal_id;
 } Gamepad_Event;
 
-Ceabed_API bool   gamepad_begin(const char *bindings_file_path, Buffer *temp);
-Ceabed_API void   gamepad_end();
-Ceabed_API void   gamepad_update(Buffer *temp);
-Ceabed_API bool   gamepad_next_event(u32 gamepad_index, Gamepad_Event *event);
-Ceabed_API bool   gamepad_is_connected(u32 gamepad_index);
-Ceabed_API u32    gamepad_get_count();
-Ceabed_API String gamepad_get_event_string(Gamepad_Event event, Buffer *buffer);
+Cbed_API bool   gamepad_begin(const char *bindings_file_path, Buffer *temp);
+Cbed_API void   gamepad_end();
+Cbed_API void   gamepad_update(Buffer *temp);
+Cbed_API bool   gamepad_next_event(u32 gamepad_index, Gamepad_Event *event);
+Cbed_API bool   gamepad_is_connected(u32 gamepad_index);
+Cbed_API u32    gamepad_get_count();
+Cbed_API String gamepad_get_event_string(Gamepad_Event event, Buffer *buffer);

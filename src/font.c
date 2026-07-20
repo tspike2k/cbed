@@ -6,12 +6,12 @@ License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 
 #include "font.h"
 
-Ceabed_API bool font_is_valid(Font* font, size_t memory_size){
+Cbed_API bool font_is_valid(Font* font, size_t memory_size){
     bool result = memory_size > sizeof(Font) && memory_size >= font->expected_size;
     return result;
 }
 
-Ceabed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
+Cbed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint){
     u8 *base = (u8 *)font;
     Font_Kerning_Pair *kerning_pairs = (Font_Kerning_Pair *)&base[font->kerning_pairs_offset];
     float *kerning_advance = (float *)&base[font->kerning_advance_offset];
@@ -28,7 +28,7 @@ Ceabed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 code
     return result;
 }
 
-Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
+Cbed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
     // IMPORTANT! Code that calls this function should test to ensure the font contains glyphs.
     assert(font->glyphs_count > 0);
 
@@ -49,7 +49,7 @@ Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint){
     return result;
 }
 
-Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len){
+Cbed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len){
     if(font->glyphs_count == 0) return 0;
 
     u32 prev_codepoint = 0;
@@ -112,7 +112,7 @@ static const char *font__get_font_path(const char *font_file_name, Buffer* memor
     return result;
 }
 
-Ceabed_API Font_Builder *font_builder_begin(Buffer *buffer){
+Cbed_API Font_Builder *font_builder_begin(Buffer *buffer){
     Font_Builder *result = buffer_push_type(Font_Builder, buffer);
 
     result->memory = buffer;
@@ -124,7 +124,7 @@ Ceabed_API Font_Builder *font_builder_begin(Buffer *buffer){
     return result;
 }
 
-Ceabed_API void font_builder_end(Font_Builder *s){
+Cbed_API void font_builder_end(Font_Builder *s){
     if(s->lib) FT_Done_FreeType(s->lib);
 }
 
@@ -339,7 +339,7 @@ static void font__bake_glyphs_to_atlas(Font_Builder *s){
     }
 }
 
-Ceabed_API String font_builder_generate(Font_Builder *s, Font_Info info, const char* font_file_name, u32 *user_codepoints, u32 user_codepoints_count){
+Cbed_API String font_builder_generate(Font_Builder *s, Font_Info info, const char* font_file_name, u32 *user_codepoints, u32 user_codepoints_count){
     String result = {0};
     if(!s->lib) return result;
 

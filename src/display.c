@@ -870,7 +870,7 @@ static bool display__process_event(XEvent *xevt, Event *evt){
     return event_translated;
 }
 
-Ceabed_API Display_Backbuffer display_get_sw_backbuffer(){
+Cbed_API Display_Backbuffer display_get_sw_backbuffer(){
     Display_Backbuffer result = {0};
     result.width  = g__display.window.width;
     result.height = g__display.window.height;
@@ -878,7 +878,7 @@ Ceabed_API Display_Backbuffer display_get_sw_backbuffer(){
     return result;
 }
 
-Ceabed_API void display_flip_backbuffer(){
+Cbed_API void display_flip_backbuffer(){
     Xlib *s = &g__display;
     Xlib_Window *window = &s->window;
     if(window->flags & Display_Flag_HW_Rendering){
@@ -893,7 +893,7 @@ Ceabed_API void display_flip_backbuffer(){
     }
 }
 
-Ceabed_API bool display_next_event(Event *event){
+Cbed_API bool display_next_event(Event *event){
     // Some translated events need to pass data allocated by Xlib to the caller. This data
     // needs to be freed, but the caller shouldn't have to deal with that (especially since
     // it could be different on other platforms). This is the simplest way to support that.
@@ -925,7 +925,7 @@ static void display__close_window(Xlib_Window* w){
     }
 }
 
-Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags){
+Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags){
     Xlib *s = &g__display;
 
     s->display = XOpenDisplay(NULL);
@@ -1007,7 +1007,7 @@ Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t
     return true;
 }
 
-Ceabed_API void display_end(){
+Cbed_API void display_end(){
     Xlib * s = &g__display;
 
     if(s->hidden_cursor_pixmap){
@@ -1026,11 +1026,11 @@ Ceabed_API void display_end(){
     }
 }
 
-Ceabed_API void display_end_frame(){
+Cbed_API void display_end_frame(){
     XFlush(g__display.display);
 }
 
-Ceabed_API Display_Info display_get_info(){
+Cbed_API Display_Info display_get_info(){
     Xlib_Window *window = &g__display.window;
     Display_Info result = {0};
     result.window_flags  = window->flags;

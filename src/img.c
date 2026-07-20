@@ -8,7 +8,7 @@
 #include "files.h"
 #include <assert.h>
 
-Ceabed_API u32 premultiply_alpha(u32 c){
+Cbed_API u32 premultiply_alpha(u32 c){
     u8 r = (c) & 0xff;
     u8 g = (c >> 8) & 0xff;
     u8 b = (c >> 16) & 0xff;
@@ -26,7 +26,7 @@ Ceabed_API u32 premultiply_alpha(u32 c){
     return result;
 }
 
-Ceabed_API u32 bgra_to_rgba(u32 c){
+Cbed_API u32 bgra_to_rgba(u32 c){
     u8 sr = (u8)((c >> 16) & 0xff);
     u8 sg = (u8)((c >>  8) & 0xff);
     u8 sb = (u8)((c >>  0) & 0xff);
@@ -37,7 +37,7 @@ Ceabed_API u32 bgra_to_rgba(u32 c){
     return result;
 }
 
-Ceabed_API u32 rgba_to_bgra(u32 c){
+Cbed_API u32 rgba_to_bgra(u32 c){
     u8 sr = (u8)((c >>  0) & 0xff);
     u8 sg = (u8)((c >>  8) & 0xff);
     u8 sb = (u8)((c >> 16) & 0xff);
@@ -84,7 +84,7 @@ static bool img__tga_is_non_interleaved(TGA_Header* header){
     return result;
 }
 
-Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest){
+Cbed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest){
     Img_Pixels result = {0};
 
     Buffer src = {data, data_size};
@@ -138,7 +138,7 @@ Ceabed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data
     return result;
 }
 
-Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *scratch){
+Cbed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *scratch){
     Buffer scratch_restore = *scratch;
 
     Img_Pixels result = {0};
@@ -151,7 +151,7 @@ Ceabed_API Img_Pixels img_load_tga(const char* file_name, Buffer* dest, Buffer *
     return result;
 }
 
-Ceabed_API bool img_save_tga(const char* file_name, u32 width, u32 height, u32 *pixels, Buffer *scratch){
+Cbed_API bool img_save_tga(const char* file_name, u32 width, u32 height, u32 *pixels, Buffer *scratch){
     size_t scratch_frame = buffer_frame_begin(scratch);
 
     TGA_Header *header     = buffer_push_type(TGA_Header, scratch);

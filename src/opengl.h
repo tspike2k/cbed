@@ -4,8 +4,8 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_OPENGL_H
-#define CEABED_OPENGL_H
+#ifndef CBED_OPENGL_H
+#define CBED_OPENGL_H
 
 #include <stdint.h>
 
@@ -13,7 +13,7 @@
 #define OpenGL_Version_Minor 3
 
 typedef void *(*OpenGL_Load_Sym_Func)(const char* str);
-Ceabed_API void load_opengl_functions(OpenGL_Load_Sym_Func load);
+Cbed_API void load_opengl_functions(OpenGL_Load_Sym_Func load);
 
 typedef struct __GLsync __GLsync;
 
@@ -1000,4 +1000,4 @@ extern glDepthRangeFunc glDepthRange;
 extern glClearDepthFunc glClearDepth;
 extern glBufferSubDataFunc glBufferSubData;
 
-#endif //CEABED_OPENGL_H
+#endif //CBED_OPENGL_H

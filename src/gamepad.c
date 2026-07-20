@@ -117,7 +117,7 @@ static Gamepad *gamepad__maybe_add_by_file_name(const char *file_name, Buffer *t
     return pad;
 }
 
-Ceabed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
+Cbed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
     gamepad__inotify_fd = inotify_init1(IN_NONBLOCK);
     if(gamepad__inotify_fd == -1){
         const char *error_msg = strerror(errno);
@@ -160,7 +160,7 @@ Ceabed_API bool gamepad_begin(const char *bindings_file_path, Buffer *temp){
     return true;
 }
 
-Ceabed_API void gamepad_end(){
+Cbed_API void gamepad_end(){
     if(gamepad__inotify_fd != -1){
         if(gamepad__watch_fd != -1){
             inotify_rm_watch(gamepad__inotify_fd, gamepad__watch_fd);
@@ -181,7 +181,7 @@ Ceabed_API void gamepad_end(){
     free(gamepad__devices);
 }
 
-Ceabed_API void gamepad_update(Buffer *temp){
+Cbed_API void gamepad_update(Buffer *temp){
     size_t marker = buffer_frame_begin(temp);
 
     u32 poll_fds_count = 0;
@@ -301,14 +301,14 @@ static bool gamepad__translate_event(Gamepad_Event *dest, struct input_event sou
     return translated;
 }
 
-Ceabed_API bool gamepad_is_connected(u32 gamepad_index){
+Cbed_API bool gamepad_is_connected(u32 gamepad_index){
     assert(gamepad_index < gamepad__count);
     Gamepad *pad = &gamepad__devices[gamepad_index];
     bool result = pad->fd != -1;
     return result;
 }
 
-Ceabed_API bool gamepad_next_event(u32 gamepad_index, Gamepad_Event *event){
+Cbed_API bool gamepad_next_event(u32 gamepad_index, Gamepad_Event *event){
     assert(gamepad_index < gamepad__count);
 
     bool result = false;
@@ -353,7 +353,7 @@ Ceabed_API bool gamepad_next_event(u32 gamepad_index, Gamepad_Event *event){
     return result;
 }
 
-Ceabed_API u32  gamepad_get_count(){
+Cbed_API u32  gamepad_get_count(){
     u32 result = gamepad__count;
     return result;
 }
@@ -375,7 +375,7 @@ static String gamepad__get_unknown_event_string(Gamepad_Event event, Buffer *buf
 // OS_Linux
 //------------------------------------------------------------------------------
 
-Ceabed_API String gamepad_get_event_string(Gamepad_Event event, Buffer *buffer){
+Cbed_API String gamepad_get_event_string(Gamepad_Event event, Buffer *buffer){
     String result;
     switch(event.type){
         default: assert(0);

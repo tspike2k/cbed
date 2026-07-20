@@ -4,8 +4,8 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_DISPLAY_H
-#define CEABED_DISPLAY_H
+#ifndef CBED_DISPLAY_H
+#define CBED_DISPLAY_H
 
 #include "common.h"
 
@@ -181,12 +181,12 @@ typedef struct{
     uint32_t window_height;
 } Display_Info;
 
-Ceabed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags);
-Ceabed_API void display_end();
-Ceabed_API Display_Backbuffer display_get_sw_backbuffer();
-Ceabed_API void display_flip_backbuffer();
-Ceabed_API Display_Info display_get_info();
-Ceabed_API bool display_next_event(Event *event);
-Ceabed_API void display_end_frame();
+Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags);
+Cbed_API void display_end();
+Cbed_API Display_Backbuffer display_get_sw_backbuffer();
+Cbed_API void display_flip_backbuffer();
+Cbed_API Display_Info display_get_info();
+Cbed_API bool display_next_event(Event *event);
+Cbed_API void display_end_frame();
 
-#endif // CEABED_DISPLAY_H
+#endif // CBED_DISPLAY_H

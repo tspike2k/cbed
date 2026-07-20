@@ -74,10 +74,10 @@ set to the Null Glyph). Testing if the font even contains glyphs should be done 
 calling these functions, just in case. For example, a draw_text function should exit early
 if font->glyphs_count is 0.
 */
-Ceabed_API bool font_is_valid(Font* font, size_t memory_size);
-Ceabed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint);
-Ceabed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint);
-Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len);
+Cbed_API bool font_is_valid(Font* font, size_t memory_size);
+Cbed_API Font_Glyph* font_get_glyph(Font* font, u32 codepoint);
+Cbed_API f32 font_get_kerning_advance(Font* font, u32 prev_codepoint, u32 codepoint);
+Cbed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len);
 
 ////
 //
@@ -89,9 +89,9 @@ Ceabed_API f32 font_get_text_width(Font* font, const char *text, size_t text_len
 
 typedef struct Font_Builder Font_Builder;
 
-Ceabed_API Font_Builder *font_builder_begin(Buffer *buffer);
-Ceabed_API String font_builder_generate(Font_Builder *builder, Font_Info info, const char* font_file_name, u32 *codepoints, u32 codepoints_count);
-Ceabed_API void font_builder_end(Font_Builder *builder);
+Cbed_API Font_Builder *font_builder_begin(Buffer *buffer);
+Cbed_API String font_builder_generate(Font_Builder *builder, Font_Info info, const char* font_file_name, u32 *codepoints, u32 codepoints_count);
+Cbed_API void font_builder_end(Font_Builder *builder);
 
 #endif // FONT_BUILDER
 

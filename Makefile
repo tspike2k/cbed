@@ -38,6 +38,10 @@ pad: display
 font_builder:
 	$(CC) $(FLAGS) -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype -lm
 
+#NOTE: Experimental
+ui: display
+	$(CC) $(FLAGS) -o ./bin/ui examples/ui.c ./bin/display.o $(LIBS)
+
 # NOTE: The code hotloading example is compiled differently than the others because it has
 # unusual requirements. In typical scenarios a library provides global symbols and the base
 # executable links against them. In our case, however, we would like to do the opposite;
@@ -46,14 +50,11 @@ font_builder:
 # symbol table by default, but we can force this by using the -rdynamic flag. Unfortunatly,
 # it will export ALL dynamic symbols, but it does work.
 #
-# It might be a better idea to instead compile ceabed as a seperate library and link to that,
+# It might be a better idea to instead compile cbed as a seperate library and link to that,
 # using the -rpath=$ORIGIN trick to prevent the user form needing to install the lib. It would
-# be worth checking to see how well ceabed works as a shared library anyway.
+# be worth checking to see how well cbed works as a shared library anyway.
 #
-# To check which symbols are in the dynamic symbol talble, use 'nm -D <binary_name>'.
-#
-#gcc $FLAGS -DCeabed_API='__attribute__((visibility("default")))' -shared -o ./bin/libdisplay.so ./src/display.c $LIBS
-#gcc $FLAGS -rdynamic -o ./bin/hotload examples/hotload.c  $LIBS -L./bin -ldisplay -Wl,-rpath,'$ORIGIN'
+# To check which symbols are in the dynamic symbol table, use 'nm -D <binary_name>'.
 hotload_code: display
 	$(CC) -g -Wall -Isrc -shared -nodefaultlibs -nostartfiles -o ./bin/libhotload.so examples/hotload_lib.c
 	$(CC) $(FLAGS) -rdynamic -o ./bin/hotload examples/hotload.c ./bin/display.o $(LIBS)

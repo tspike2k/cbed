@@ -4,8 +4,8 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_FILES_H
-#define CEABED_FILES_H
+#ifndef CBED_FILES_H
+#define CBED_FILES_H
 
 #include "common.h"
 
@@ -32,33 +32,33 @@ typedef struct{
 } File;
 
 // NOTE: Read/write operations are done in a blocking mode.
-Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags);
-Ceabed_API void file_close(File *file);
-Ceabed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size);
-Ceabed_API void file_write(File *file, size_t offset, void *buffer, size_t buffer_size);
-Ceabed_API size_t file_get_size(File* file);
-Ceabed_API void file_delete(const char *file_path);
-Ceabed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size);
-Ceabed_API void file_stream_out(File *file, void *buffer, size_t buffer_size);
-Ceabed_API bool file_exists(const char *file_path);
+Cbed_API bool file_open(File *file, const char *file_path, uint32_t flags);
+Cbed_API void file_close(File *file);
+Cbed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size);
+Cbed_API void file_write(File *file, size_t offset, void *buffer, size_t buffer_size);
+Cbed_API size_t file_get_size(File* file);
+Cbed_API void file_delete(const char *file_path);
+Cbed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size);
+Cbed_API void file_stream_out(File *file, void *buffer, size_t buffer_size);
+Cbed_API bool file_exists(const char *file_path);
 
-Ceabed_API void file_write_from_memory(const char *file_name, void *data, size_t size);
-Ceabed_API String file_read_into_memory(const char *file_name, Buffer *buffer);
+Cbed_API void file_write_from_memory(const char *file_name, void *data, size_t size);
+Cbed_API String file_read_into_memory(const char *file_name, Buffer *buffer);
 
-Ceabed_API File file_get_stdin();
-Ceabed_API File file_get_stdout();
-Ceabed_API File file_get_stderr();
+Cbed_API File file_get_stdin();
+Cbed_API File file_get_stdout();
+Cbed_API File file_get_stderr();
 
-Ceabed_API const char *get_executable_path(Buffer *buffer);
+Cbed_API const char *get_executable_path(Buffer *buffer);
 
 typedef struct{
     u32 flags;
     u8  internal[16];
 } File_Lib;
 
-Ceabed_API bool file_open_lib(File_Lib *lib, const char *file_name);
-Ceabed_API void    *file_load_symbol_raw(File_Lib *lib, const char *symbol);
-Ceabed_API void     file_close_lib(File_Lib *lib);
+Cbed_API bool file_open_lib(File_Lib *lib, const char *file_name);
+Cbed_API void    *file_load_symbol_raw(File_Lib *lib, const char *symbol);
+Cbed_API void     file_close_lib(File_Lib *lib);
 #define File_Load_Symbol(lib, sym) sym = (Macro_Join(sym, _func))file_load_symbol_raw(lib, #sym)
 
 typedef struct{
@@ -67,11 +67,11 @@ typedef struct{
     u8          internal[64];
 } File_Walker;
 
-Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path);
-Ceabed_API void file_walker_end(File_Walker *walker);
-Ceabed_API bool file_walker_advance(File_Walker *walker);
-Ceabed_API void file_walker_enter_directory(File_Walker *walker);
-Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer);
+Cbed_API void file_walker_begin(File_Walker *walker, const char *dir_path);
+Cbed_API void file_walker_end(File_Walker *walker);
+Cbed_API bool file_walker_advance(File_Walker *walker);
+Cbed_API void file_walker_enter_directory(File_Walker *walker);
+Cbed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer);
 
 typedef struct{
     u8 internal[64];
@@ -92,10 +92,10 @@ typedef struct{
 
 #define File_Watcher_Bad_ID UINT32_MAX
 
-Ceabed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buffer_size);
-Ceabed_API void file_watcher_end(File_Watcher *watcher);
-Ceabed_API u32  file_watcher_add(File_Watcher *watcher, const char *file_path);
-Ceabed_API void file_watcher_update(File_Watcher *watcher);
-Ceabed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt);
+Cbed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buffer_size);
+Cbed_API void file_watcher_end(File_Watcher *watcher);
+Cbed_API u32  file_watcher_add(File_Watcher *watcher, const char *file_path);
+Cbed_API void file_watcher_update(File_Watcher *watcher);
+Cbed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt);
 
-#endif // CEABED_FILES_H
+#endif // CBED_FILES_H

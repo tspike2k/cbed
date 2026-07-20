@@ -160,7 +160,7 @@ static bool obj__parse_face_vertex(Obj__Face_Vertex *v, String *reader){
     return !error;
 }
 
-Ceabed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest, Buffer* scratch){
+Cbed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest, Buffer* scratch){
     size_t scratch_frame = buffer_frame_begin(scratch);
 
     assert(sizeof(obj->internal) >= sizeof(Obj__Internal));
@@ -258,7 +258,7 @@ static size_t obj__resolve_index(s32 index, size_t count){
     return result;
 }
 
-Ceabed_API Obj_Polygon obj_polygon_from_face(Obj_Data *obj, size_t face_index){
+Cbed_API Obj_Polygon obj_polygon_from_face(Obj_Data *obj, size_t face_index){
     assert(sizeof(obj->internal) >= sizeof(Obj__Internal));
     Obj__Internal *internal = (Obj__Internal *)&obj->internal[0];
 

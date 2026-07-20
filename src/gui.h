@@ -9,8 +9,8 @@ NOTE: This GUI is very much an early prototype. Not much has been done with it y
 likely to have breaking changes.
 */
 
-#ifndef CEABED_GUI_H
-#define CEABED_GUI_H
+#ifndef CBED_GUI_H
+#define CBED_GUI_H
 
 #include "common.h"
 #include "math.h"
@@ -67,12 +67,12 @@ struct Gui_Panel{
     void  *buffer[0];
 };
 
-Ceabed_API bool gui_handle_event(Gui *gui, Event *event);
-Ceabed_API void gui_update(Gui *gui, u32 canvas_w, u32 canvas_h, f32 dt);
-Ceabed_API void gui_draw(Gui *gui);
+Cbed_API bool gui_handle_event(Gui *gui, Event *event);
+Cbed_API void gui_update(Gui *gui, u32 canvas_w, u32 canvas_h, f32 dt);
+Cbed_API void gui_draw(Gui *gui);
 
-Ceabed_API Gui_Panel *gui_begin_panel(Gui *gui, void *data, size_t data_len, u32 flags);
-Ceabed_API void       gui_end_panel(Gui_Panel *panel);
-Ceabed_API void gui_button(Gui_Panel *panel, Gui_ID id, String text);
+Cbed_API Gui_Panel *gui_begin_panel(Gui *gui, void *data, size_t data_len, u32 flags);
+Cbed_API void       gui_end_panel(Gui_Panel *panel);
+Cbed_API void gui_button(Gui_Panel *panel, Gui_ID id, String text);
 
-#endif // CEABED_GUI_H
+#endif // CBED_GUI_H

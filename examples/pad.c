@@ -83,7 +83,7 @@ int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
     u32 display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Box", 1024, 768, display_flags) && draw_begin(&memory);
+    bool running = display_begin("Pad", 1024, 768, display_flags) && draw_begin(&memory);
     gamepad_begin(NULL, &memory);
 
     fmt_msg("{0}\n", fmt_i(0));

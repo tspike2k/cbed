@@ -11,12 +11,12 @@ should take effect rather quickly.
 See hotload.c for a deeper explanation of this example.
 */
 
-#define Ceabed_API extern
+#define Cbed_API extern
 #include "common.h"
 #include "draw.h"
 #include "display.h"
 
-Ceabed_API bool hotload_test(Buffer *memory){
+Cbed_API bool hotload_test(Buffer *memory){
     bool running = true;
 
     Buffer memory_restore = *memory;

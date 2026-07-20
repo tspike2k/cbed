@@ -13,7 +13,7 @@
 
 #include <time.h>
 
-Ceabed_API void os_sleep_ns(u64 nanoseconds){
+Cbed_API void os_sleep_ns(u64 nanoseconds){
     if(nanoseconds > 0){
         struct timespec ts;
         ts.tv_sec  = nanoseconds / 1000000000;
@@ -26,7 +26,7 @@ Ceabed_API void os_sleep_ns(u64 nanoseconds){
     }
 }
 
-Ceabed_API u64 os_timestamp_ns(){
+Cbed_API u64 os_timestamp_ns(){
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
     u64 result = ts.tv_sec * 1000000000 + ts.tv_nsec;

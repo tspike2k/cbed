@@ -111,13 +111,13 @@ static Draw_Cmd *draw__push_command(Draw_Layer *layer, u32 cmd_type, u32 cmd_siz
     return cmd;
 }
 
-Ceabed_API Camera *draw_get_default_camera(){
+Cbed_API Camera *draw_get_default_camera(){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Camera *result = &s->default_camera;
     return result;
 }
 
-Ceabed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, float screen_h){
+Cbed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, float screen_h){
     Mat4 mat = mat4_mul(camera->proj.mat, camera->view.mat); // TODO: Precompute this?
     Vec4 p = mat4_mul_v4(mat, v4(world_p.x, world_p.y, world_p.z, 1));
     Vec2 ndc = v2(p.x/p.w, p.y/p.w);
@@ -126,7 +126,7 @@ Ceabed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, flo
     return result;
 }
 
-Ceabed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, float screen_h){
+Cbed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, float screen_h){
     // Based on the following source:
     // https://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-a-physics-library/
     //
@@ -153,7 +153,7 @@ Ceabed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, 
     return result;
 }
 
-Ceabed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f){
+Cbed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     // Orthographic adapted from here:
     // https://songho.ca/opengl/gl_projectionmatrix.html#ortho
     // https://en.wikipedia.org/wiki/Orthographic_projection
@@ -179,7 +179,7 @@ Ceabed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f){
     return result;
 }
 
-Ceabed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up){
+Cbed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up){
     Draw_XForm result;
     Vec3 camera_world = polar_to_world(camera_polar, camera_target);
     result.mat = make_lookat_matrix(camera_world, camera_target, up);
@@ -188,7 +188,7 @@ Ceabed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_targ
     return result;
 }
 
-Ceabed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
+Cbed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     Vec3 look_dir = v3_normalize(v3_sub(look_pos, camera_pos));
     Vec3 up_dir   = up_pos;
 
@@ -207,7 +207,7 @@ Ceabed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos){
     return result;
 }
 
-Ceabed_API Mat4 invert_view_matrix(Mat4 view){
+Cbed_API Mat4 invert_view_matrix(Mat4 view){
     // IMPORTANT: Inverting a view matrix this way only works if no non-uniform rotation has been
     // applied.
 
@@ -229,7 +229,7 @@ Ceabed_API Mat4 invert_view_matrix(Mat4 view){
     return result;
 }
 
-Ceabed_API Rect calc_scaling_viewport(float res_x, float res_y, float window_w, float window_h){
+Cbed_API Rect calc_scaling_viewport(float res_x, float res_y, float window_w, float window_h){
     // TODO(tspike) Investigate why there's a vertical stripe of non-rendered pixels on the right side of the screen when
     // in fullcreen mode in X11 (on my laptop). Floating point precision issues? Do we need to clamp?
 
@@ -255,7 +255,7 @@ Ceabed_API Rect calc_scaling_viewport(float res_x, float res_y, float window_w, 
     return result;
 }
 
-Ceabed_API u32 draw_set_layer(u32 layer_index){
+Cbed_API u32 draw_set_layer(u32 layer_index){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     u32 result = s->layer_index;
     s->layer_index = layer_index;
@@ -309,19 +309,19 @@ static Draw_Vertex *draw__add_quad_cmd(Draw_Layer* layer, Draw_Texture texture, 
     return result;
 }
 
-Ceabed_API void draw_rect_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
+Cbed_API void draw_rect_textured(Rect r, u32 color, Draw_Texture texture, Rect uvs){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Vertex *v = draw__add_quad_cmd(layer, texture, Draw__Vertex_Per_Quad);
     draw__set_quad(v, r, color, uvs);
 }
 
-Ceabed_API void draw_rect(Rect r, u32 color){
+Cbed_API void draw_rect(Rect r, u32 color){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});
     draw_rect_textured(r, color, s->blank_texture, uvs);
 }
 
-Ceabed_API void draw_circle(Vec2 center, float radius, u32 color){
+Cbed_API void draw_circle(Vec2 center, float radius, u32 color){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Circle *cmd = (Draw_Cmd_Circle*)draw__push_command(layer, Draw_Cmd_Type_Circle, sizeof(Draw_Cmd_Circle));
     cmd->center = center;
@@ -329,7 +329,7 @@ Ceabed_API void draw_circle(Vec2 center, float radius, u32 color){
     cmd->color = color;
 }
 
-Ceabed_API void draw_rect_outline(Rect r, u32 color, float border){
+Cbed_API void draw_rect_outline(Rect r, u32 color, float border){
     float b = border*0.5f;
     Rect right  = {v2(r.center.x + r.extents.x - b, r.center.y), v2(b, r.extents.y)};
     Rect left   = {v2(r.center.x - r.extents.x + b, r.center.y), v2(b, r.extents.y)};
@@ -342,7 +342,7 @@ Ceabed_API void draw_rect_outline(Rect r, u32 color, float border){
     draw_rect(bottom, color);
 }
 
-Ceabed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
+Cbed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Vertices *cmd = (Draw_Cmd_Vertices*)draw__push_command(layer, Draw_Cmd_Type_Vertices, sizeof(Draw_Cmd_Vertices));
     cmd->xform = xform;
@@ -350,7 +350,7 @@ Ceabed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count){
     cmd->vertices_count = vertex_count;
 }
 
-Ceabed_API void draw_set_shader_3D(){
+Cbed_API void draw_set_shader_3D(){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)draw__push_command(
@@ -359,7 +359,7 @@ Ceabed_API void draw_set_shader_3D(){
     cmd->shader = s->shader_default_3d;
 }
 
-Ceabed_API void draw_set_shader_2D(){
+Cbed_API void draw_set_shader_2D(){
     Draw_State_Common *s = (Draw_State_Common*)&draw__state;
     Draw_Layer *layer = draw__get_active_layer();
     Draw_Cmd_Set_Shader *cmd = (Draw_Cmd_Set_Shader*)draw__push_command(
@@ -373,7 +373,7 @@ static Draw_Texture *draw__get_font_texture_handle(Font *font){
     return result;
 }
 
-Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
+Cbed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len){
     if(!font) return;
 
     Draw_Texture *texture = draw__get_font_texture_handle(font);
@@ -407,7 +407,7 @@ Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text
     }
 }
 
-Ceabed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds){
+Cbed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds){
     f32 tw = font_get_text_width(font, text, text_len);
     auto h = font->cap_height;
 
@@ -436,7 +436,7 @@ static Vec3 v2_to_v3(Vec2 p){ // TODO: Why is this here? Shouldn't this be in ma
     return result;
 }
 
-Ceabed_API void draw_2d_line(Vec2 start, Vec2 end, u32 color, f32 thickness){
+Cbed_API void draw_2d_line(Vec2 start, Vec2 end, u32 color, f32 thickness){
     Rect uvs = rect_from_min_max((Vec2){0, 0}, (Vec2){1, 1});
 
     Vec2 diff = v2_sub(start, end);
@@ -454,12 +454,12 @@ Ceabed_API void draw_2d_line(Vec2 start, Vec2 end, u32 color, f32 thickness){
     draw__set_quad_points(v, v2_to_v3(p0), v2_to_v3(p1), v2_to_v3(p2), v2_to_v3(p3), color, uvs);
 }
 
-Ceabed_API void draw_set_camera(Camera *camera){
+Cbed_API void draw_set_camera(Camera *camera){
     Draw_Layer *layer = draw__get_active_layer();
     layer->camera = camera;
 }
 
-Ceabed_API void draw_set_culling(float z_near, float z_far){
+Cbed_API void draw_set_culling(float z_near, float z_far){
     Draw_Layer *layer = draw__get_active_layer();
     layer->flags |= Draw_Layer_Flag_Cull;
     layer->z_near = z_near;
@@ -479,7 +479,7 @@ static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
     return result;
 }
 
-Ceabed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size){
+Cbed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size){
     Buffer buffer = {memory, memory_size};
     bool error = false;
 
@@ -723,7 +723,7 @@ void destroy_shader(Shader* shader){
 }
 #endif
 
-Ceabed_API bool draw_begin(Buffer *memory){
+Cbed_API bool draw_begin(Buffer *memory){
     Draw_State *s = &draw__state;
 
     Display_Info info = display_get_info();
@@ -823,11 +823,11 @@ Ceabed_API bool draw_begin(Buffer *memory){
     return success;
 }
 
-Ceabed_API void draw_end(){
+Cbed_API void draw_end(){
 
 }
 
-Ceabed_API void draw_frame_begin(){
+Cbed_API void draw_frame_begin(){
     Draw_State *s = &draw__state;
     if(s->common.hw_rendering){
         Display_Info info = display_get_info();
@@ -846,7 +846,7 @@ static void draw__shader_set_camera(Draw_State* s, Camera* camera){
     );
 }
 
-Ceabed_API void draw_frame_end(){
+Cbed_API void draw_frame_end(){
     Draw_State *s = &draw__state;
     Camera* camera = &s->common.default_camera;
 
@@ -963,7 +963,7 @@ Ceabed_API void draw_frame_end(){
     }
 }
 
-Ceabed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
+Cbed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags){
     Draw_Texture result = Draw_Texture_Null;
     if(width && height && pixels){
         GLint  internal_format = GL_RGBA8; // TODO: Do we care? Can we tell OpenGL we don't care?
@@ -990,7 +990,7 @@ Ceabed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, 
     return result;
 }
 
-Ceabed_API void draw_destroy_texture(Draw_Texture *texture){
+Cbed_API void draw_destroy_texture(Draw_Texture *texture){
     GLuint t = (GLuint)*texture;
     glDeleteTextures(1, &t);
     *texture = Draw_Texture_Null;

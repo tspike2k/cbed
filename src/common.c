@@ -31,21 +31,21 @@ enum{
     Fmt_Type_Float,
 };
 
-Ceabed_API Fmt_Arg fmt_i(int64_t value){
+Cbed_API Fmt_Arg fmt_i(int64_t value){
     Fmt_Arg result = {0};
     result.info = Fmt_Type_Signed_Integer;
     result.data_int = value;
     return result;
 }
 
-Ceabed_API Fmt_Arg fmt_f(float value){
+Cbed_API Fmt_Arg fmt_f(float value){
     Fmt_Arg result = {0};
     result.info = Fmt_Type_Float;
     result.data_float = value;
     return result;
 }
 
-Ceabed_API Fmt_Arg fmt_cstr(const char *value){
+Cbed_API Fmt_Arg fmt_cstr(const char *value){
     Fmt_Arg result = {0};
     result.info = Fmt_Type_C_String;
     result.data_cstr = value;
@@ -54,7 +54,7 @@ Ceabed_API Fmt_Arg fmt_cstr(const char *value){
 
 #include <stdio.h> // TODO: Use float conversion functions sourced from stb.
 
-Ceabed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size){
+Cbed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size){
     assert(base <= 16);
 
     buffer[buffer_size-1] = '0';
@@ -69,7 +69,7 @@ Ceabed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_si
     return result;
 }
 
-Ceabed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buffer_size){
+Cbed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buffer_size){
     assert(buffer_size >= 512);
 
     // TODO: Use stb_printf for float formatting
@@ -133,16 +133,16 @@ static void fmt__arg(Fmt_Arg arg, Fmt_Put_Func put, void *dest){
     put(text.text, text.size, dest);
 }
 
-Ceabed_API size_t buffer_frame_begin(Buffer *buffer){
+Cbed_API size_t buffer_frame_begin(Buffer *buffer){
     size_t result = buffer->used;
     return result;
 }
 
-Ceabed_API void buffer_frame_end(Buffer* buffer, size_t marker){
+Cbed_API void buffer_frame_end(Buffer* buffer, size_t marker){
     buffer->used = marker;
 }
 
-Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes){
+Cbed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes){
     void *result = NULL;
     if(bytes > 0){
         assert(buffer->used + bytes <= buffer->size);
@@ -153,7 +153,7 @@ Ceabed_API void *buffer_push_bytes(Buffer *buffer, size_t bytes){
     return result;
 }
 
-Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
+Cbed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size){
     void *result = &buffer->data[buffer->used];
     if(data_size > 0){
         assert(buffer->used + data_size <= buffer->size);
@@ -163,7 +163,7 @@ Ceabed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size
     return result;
 }
 
-Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes){
+Cbed_API void *buffer_read(Buffer *buffer, size_t bytes){
     void *result = NULL;
     if(buffer->used + bytes <= buffer->size){
         result = &buffer->data[buffer->used];
@@ -172,7 +172,7 @@ Ceabed_API void *buffer_read(Buffer *buffer, size_t bytes){
     return result;
 }
 
-Ceabed_API char *buffer_put_text(Buffer *buffer, const char* text, size_t text_len){
+Cbed_API char *buffer_put_text(Buffer *buffer, const char* text, size_t text_len){
     char *result = (char *)&buffer->data[buffer->used];
     if(text_len){
         size_t availible = buffer->size - buffer->used;
@@ -183,7 +183,7 @@ Ceabed_API char *buffer_put_text(Buffer *buffer, const char* text, size_t text_l
     return result;
 }
 
-Ceabed_API char *buffer_null_terminate(Buffer* buffer){
+Cbed_API char *buffer_null_terminate(Buffer* buffer){
     char *result = (char *)&buffer->data[buffer->used];
     if(buffer->used < buffer->size){
         buffer->data[buffer->used] = 0;
@@ -199,23 +199,23 @@ Ceabed_API char *buffer_null_terminate(Buffer* buffer){
 // Strings
 //
 
-Ceabed_API String str(const char* s){
+Cbed_API String str(const char* s){
     String result = {(char*)s, strlen(s)};
     return result;
 }
 
-Ceabed_API bool char_is_whitespace(char c){
+Cbed_API bool char_is_whitespace(char c){
     bool result = c == ' ' || (c >= '\t' && c <= '\r');
     return result;
 }
 
-Ceabed_API void str_advance(String* reader){
+Cbed_API void str_advance(String* reader){
     assert(reader->size);
     reader->text++;
     reader->size--;
 }
 
-Ceabed_API String str_eat_line(String *reader){
+Cbed_API String str_eat_line(String *reader){
     // TODO: This is buggy! The reader doesn't skip the ending newline.
     String result = *reader;
     while(reader->size){
@@ -234,13 +234,13 @@ Ceabed_API String str_eat_line(String *reader){
     return result;
 }
 
-Ceabed_API void str_skip_whitespace(String *reader){
+Cbed_API void str_skip_whitespace(String *reader){
     while(reader->size && char_is_whitespace(reader->text[0])){
         str_advance(reader);
     }
 }
 
-Ceabed_API bool str_match(String a, String b){
+Cbed_API bool str_match(String a, String b){
     bool result = a.size == b.size;
     if(a.size == b.size){
         for(size_t i = 0; i < a.size; i++){
@@ -253,7 +253,7 @@ Ceabed_API bool str_match(String a, String b){
     return result;
 }
 
-Ceabed_API bool str_ends_with(String s, String end){
+Cbed_API bool str_ends_with(String s, String end){
     assert(end.size);
 
     bool result = true;
@@ -279,7 +279,7 @@ Ceabed_API bool str_ends_with(String s, String end){
     return result;
 }
 
-Ceabed_API char *str_find_last(String s, char c){
+Cbed_API char *str_find_last(String s, char c){
     char *result = NULL;
     while(s.size > 0){
         if(*s.text == '/'){
@@ -303,7 +303,7 @@ Ceabed_API char *str_find_last(String s, char c){
 // or the same license used by the rest of the code in this file.
 //
 // TODO: Find out what algorithm this is and what it's limitations are.
-Ceabed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
+Cbed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
     const char *p = str;
     double value=0;
     int base=10;
@@ -355,7 +355,7 @@ Ceabed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
     return success;
 }
 
-Ceabed_API bool str_to_f32(const char *s, size_t s_len, f32* f){
+Cbed_API bool str_to_f32(const char *s, size_t s_len, f32* f){
     // TODO: It seems there are a wealth of new ideas on how to
     // https://research.swtch.com/fp
     f64 d = 0;
@@ -398,16 +398,16 @@ static void fmt__default(const char *text, size_t text_count, void *dest){
     }
 }
 
-Ceabed_API void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data){
+Cbed_API void fmt_msg_set_dest(Fmt_Put_Func put, void *user_data){
     fmt__msg_dest = user_data;
     fmt__msg_put = put;
 }
 
-Ceabed_API void fmt_msg_put(const char* msg, size_t msg_length){
+Cbed_API void fmt_msg_put(const char* msg, size_t msg_length){
     fmt__msg_put(msg, msg_length, fmt__msg_dest);
 }
 
-Ceabed_API void fmt_msg_puts(const char* msg){
+Cbed_API void fmt_msg_puts(const char* msg){
     fmt__msg_put(msg, strlen(msg), fmt__msg_dest);
 }
 
@@ -492,7 +492,7 @@ String fmt_parse_next(Fmt_Parser *parser){
     return result;
 }
 
-Ceabed_API String fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* args, size_t args_count){
+Cbed_API String fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* args, size_t args_count){
     Fmt_Parser parser = fmt_parse(fmt_string, strlen(fmt_string));
     String result = {(char*)&dest->data[dest->used], 0};
     while(!parser.done){
@@ -511,7 +511,7 @@ Ceabed_API String fmt_buffer_raw(const char *fmt_string, Buffer *dest, Fmt_Arg* 
     return result;
 }
 
-Ceabed_API void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count){
+Cbed_API void fmt_msg_raw(const char *fmt_string, Fmt_Arg *args, size_t args_count){
     Fmt_Parser parser = fmt_parse(fmt_string, strlen(fmt_string));
     while(!parser.done){
         String text = fmt_parse_next(&parser);

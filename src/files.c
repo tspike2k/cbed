@@ -24,7 +24,7 @@
 #include <stdlib.h> // malloc, realloc, free
 #include <poll.h>
 
-Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags){
+Cbed_API bool file_open(File *file, const char *file_path, uint32_t flags){
     uint32_t default_file_permissions = S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH;
 
     int permissions = 0;
@@ -58,7 +58,7 @@ Ceabed_API bool file_open(File *file, const char *file_path, uint32_t flags){
     return result;
 }
 
-Ceabed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size){
+Cbed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Read);
 
     int fd = (int)file->handle;
@@ -87,7 +87,7 @@ Ceabed_API size_t file_read(File *file, size_t offset, void *buffer, size_t buff
     return bytes_read;
 }
 
-Ceabed_API void file_write(File *file, size_t offset, void *buffer, size_t buffer_size){
+Cbed_API void file_write(File *file, size_t offset, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Write);
 
     int fd = (int)file->handle;
@@ -115,7 +115,7 @@ Ceabed_API void file_write(File *file, size_t offset, void *buffer, size_t buffe
     file->cursor = offset + buffer_written;
 }
 
-Ceabed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size){
+Cbed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Read);
 
     int fd = (int)file->handle;
@@ -143,7 +143,7 @@ Ceabed_API size_t file_stream_in(File *file, void *buffer, size_t buffer_size){
     return bytes_read;
 }
 
-Ceabed_API void file_stream_out(File *file, void *buffer, size_t buffer_size){
+Cbed_API void file_stream_out(File *file, void *buffer, size_t buffer_size){
     assert(file->flags & File_Flag_Write);
 
     int fd = (int)file->handle;
@@ -169,14 +169,14 @@ Ceabed_API void file_stream_out(File *file, void *buffer, size_t buffer_size){
     }
 }
 
-Ceabed_API void file_close(File* file){
+Cbed_API void file_close(File* file){
     assert(file->flags & File_Flag_Is_Open);
     int fd = (int)file->handle;
     close(fd);
     file->flags = 0;
 }
 
-Ceabed_API size_t file_get_size(File* file){
+Cbed_API size_t file_get_size(File* file){
     int fd = (int)file->handle;
     struct stat s;
     size_t result;
@@ -189,7 +189,7 @@ Ceabed_API size_t file_get_size(File* file){
     return result;
 }
 
-Ceabed_API void file_write_from_memory(const char *file_name, void *data, size_t size){
+Cbed_API void file_write_from_memory(const char *file_name, void *data, size_t size){
     File file;
     if(file_open(&file, file_name, File_Flag_Write)){
         file_write(&file, 0, data, size);
@@ -197,7 +197,7 @@ Ceabed_API void file_write_from_memory(const char *file_name, void *data, size_t
     }
 }
 
-Ceabed_API String file_read_into_memory(const char *file_name, Buffer *buffer){
+Cbed_API String file_read_into_memory(const char *file_name, Buffer *buffer){
     File file;
     String result = {0};
     if(file_open(&file, file_name, File_Flag_Read)){
@@ -211,25 +211,25 @@ Ceabed_API String file_read_into_memory(const char *file_name, Buffer *buffer){
     return result;
 }
 
-Ceabed_API File file_get_stdin(){
+Cbed_API File file_get_stdin(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Read;
     File result = {flags, 0};
     return result;
 }
 
-Ceabed_API File file_get_stdout(){
+Cbed_API File file_get_stdout(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Write;
     File result = {flags, 1};
     return result;
 }
 
-Ceabed_API File file_get_stderr(){
+Cbed_API File file_get_stderr(){
     uint32_t flags = File_Flag_Is_Open|File_Flag_Write;
     File result = {flags, 2};
     return result;
 }
 
-Ceabed_API const char *get_executable_path(Buffer *buffer){
+Cbed_API const char *get_executable_path(Buffer *buffer){
     // TODO: Make sure the pointer is word aligned.
     const char *result = "./";
     ssize_t count = readlink("/proc/self/exe", (char*)buffer->data, buffer->size - buffer->used);
@@ -249,7 +249,7 @@ Ceabed_API const char *get_executable_path(Buffer *buffer){
 }
 
 // TODO: Shouldn't this be called file_delete?
-Ceabed_API void delete_file(const char *file_path){
+Cbed_API void delete_file(const char *file_path){
     // TODO: Error handling?
     unlink(file_path);
 }
@@ -257,7 +257,7 @@ Ceabed_API void delete_file(const char *file_path){
 // Due to various oddities with POSIX, the most reliable way to test if a file exists is to simply
 // open the file. Both access and stat can give erronous results if the application is being
 // run with the SUID bit set. This seems to be a result of an issue called "TOCTOU."
-Ceabed_API bool file_exists(const char *file_path){
+Cbed_API bool file_exists(const char *file_path){
     bool result = false;
     File file;
     if(file_open(&file, file_path, File_Flag_Read)){
@@ -274,7 +274,7 @@ typedef struct{
 
 static_assert(sizeof(File__Lib) <= sizeof(File_Lib));
 
-Ceabed_API bool file_open_lib(File_Lib *lib, const char *file_name){
+Cbed_API bool file_open_lib(File_Lib *lib, const char *file_name){
     File__Lib *s = (File__Lib *)lib;
 
     void *dl = dlopen(file_name, RTLD_NOW); // TODO: Is lazy a good idea? Probably.
@@ -290,14 +290,14 @@ Ceabed_API bool file_open_lib(File_Lib *lib, const char *file_name){
     }
 }
 
-Ceabed_API void *file_load_symbol_raw(File_Lib *lib, const char *symbol){
+Cbed_API void *file_load_symbol_raw(File_Lib *lib, const char *symbol){
     File__Lib *s = (File__Lib *)lib;
     assert(s->flags & File_Flag_Is_Open);
     void *result = dlsym(s->lib, symbol);
     return result;
 }
 
-Ceabed_API void file_close_lib(File_Lib *lib){
+Cbed_API void file_close_lib(File_Lib *lib){
     File__Lib *s = (File__Lib *)lib;
     assert(s->flags & File_Flag_Is_Open);
     dlclose(s->lib);
@@ -363,7 +363,7 @@ static void file__walker_pop_path(File__Walker *s){
     s->path_used = place - s->path + 1;
 }
 
-Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path){
+Cbed_API void file_walker_begin(File_Walker *walker, const char *dir_path){
     File__Walker *s = (File__Walker *)walker;
     memset(s, 0, sizeof(File__Walker));
 
@@ -377,13 +377,13 @@ Ceabed_API void file_walker_begin(File_Walker *walker, const char *dir_path){
     file_walker_enter_directory(walker);
 }
 
-Ceabed_API void file_walker_end(File_Walker *walker){
+Cbed_API void file_walker_end(File_Walker *walker){
     File__Walker *s = (File__Walker *)walker;
     if(s->dirs) free(s->dirs);
     if(s->path) free(s->path);
 }
 
-Ceabed_API bool file_walker_advance(File_Walker *walker){
+Cbed_API bool file_walker_advance(File_Walker *walker){
     File__Walker *s = (File__Walker *)walker;
 
     bool result = false;
@@ -420,7 +420,7 @@ Ceabed_API bool file_walker_advance(File_Walker *walker){
     return result;
 }
 
-Ceabed_API void file_walker_enter_directory(File_Walker *walker){
+Cbed_API void file_walker_enter_directory(File_Walker *walker){
     File__Walker *s = (File__Walker *)walker;
     if(s->file_type == File_Type_Directory){
         file__walker_append_path(s, s->file_name);
@@ -444,7 +444,7 @@ Ceabed_API void file_walker_enter_directory(File_Walker *walker){
     }
 }
 
-Ceabed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
+Cbed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
     File__Walker *s = (File__Walker *)walker;
     assert(s->path_used > 1);
     assert(s->path[s->path_used-2] == '/');
@@ -469,7 +469,7 @@ typedef struct{
 
 static_assert(sizeof(File__Watch) >= sizeof(File_Watcher));
 
-Ceabed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buffer_size){
+Cbed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buffer_size){
     File__Watch *s = (File__Watch *)watcher;
     memset(s, 0, sizeof(File__Watch));
 
@@ -481,7 +481,7 @@ Ceabed_API void file_watcher_begin(File_Watcher *watcher, void *buffer, u32 buff
         fmt_msg_puts("Failed to create fd when calling inotify_init1.\n");
 }
 
-Ceabed_API void file_watcher_end(File_Watcher *watcher){
+Cbed_API void file_watcher_end(File_Watcher *watcher){
     File__Watch *s = (File__Watch *)watcher;
     if(s->inotify_fd == -1) return;
 
@@ -495,7 +495,7 @@ Ceabed_API void file_watcher_end(File_Watcher *watcher){
     s->inotify_fd = -1;
 }
 
-Ceabed_API u32 file_watcher_add(File_Watcher *watcher, const char *file_path){
+Cbed_API u32 file_watcher_add(File_Watcher *watcher, const char *file_path){
     File__Watch *s = (File__Watch *)watcher;
     if(s->inotify_fd == -1) return File_Watcher_Bad_ID;
 
@@ -515,7 +515,7 @@ Ceabed_API u32 file_watcher_add(File_Watcher *watcher, const char *file_path){
     return result;
 }
 
-Ceabed_API void file_watcher_update(File_Watcher *watcher){
+Cbed_API void file_watcher_update(File_Watcher *watcher){
     File__Watch *s = (File__Watch *)watcher;
     if(s->inotify_fd == -1) return;
 
@@ -537,7 +537,7 @@ Ceabed_API void file_watcher_update(File_Watcher *watcher){
     }
 }
 
-Ceabed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt){
+Cbed_API bool file_watcher_next_event(File_Watcher *watcher, File_Watcher_Event *evt){
     File__Watch *s = (File__Watch *)watcher;
     // TODO: We're not looping over the buffer, don't we drop events?
     if(s->inotify_fd == -1) return false;

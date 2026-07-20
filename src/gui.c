@@ -22,7 +22,7 @@ TODO:
 #define Gui_Border_Color 0xffa86b33
 #define Gui_Work_Color   0xfffae6d9
 
-Ceabed_API void gui_init(Gui *gui){
+Cbed_API void gui_init(Gui *gui){
     gui->panels.next = &gui->panels;
     gui->panels.prev = &gui->panels;
 }
@@ -84,7 +84,7 @@ static Rect gui__get_work_area(Gui_Panel* panel, Font* font){
     }
 }
 
-Ceabed_API void gui_update(Gui *gui, u32 canvas_w, u32 canvas_h, f32 dt){
+Cbed_API void gui_update(Gui *gui, u32 canvas_w, u32 canvas_h, f32 dt){
     // Auto-layout pass.
     f32 pen_y = canvas_h;
     gui_iterate_panels(gui, panel){
@@ -119,7 +119,7 @@ Ceabed_API void gui_update(Gui *gui, u32 canvas_w, u32 canvas_h, f32 dt){
     }
 }
 
-Ceabed_API bool gui_handle_event(Gui *gui, Event *event){
+Cbed_API bool gui_handle_event(Gui *gui, Event *event){
     bool result = false;
     switch(event->type){
         default: break;
@@ -160,7 +160,7 @@ Ceabed_API bool gui_handle_event(Gui *gui, Event *event){
     return result;
 }
 
-Ceabed_API void gui_draw(Gui *gui){
+Cbed_API void gui_draw(Gui *gui){
     Gui_Panel *sentinel = (Gui_Panel*)&gui->panels;
     gui_iterate_panels(gui, panel){
         draw_rect(panel->bounds, 0xff000000);
@@ -185,7 +185,7 @@ Ceabed_API void gui_draw(Gui *gui){
     }
 }
 
-Ceabed_API Gui_Panel *gui_begin_panel(Gui *gui, void *data, size_t data_len, u32 flags){
+Cbed_API Gui_Panel *gui_begin_panel(Gui *gui, void *data, size_t data_len, u32 flags){
     assert(data_len >= sizeof(Gui_Panel));
 
     Gui_Panel *panel_sentinel = (Gui_Panel*)&gui->panels;
@@ -206,6 +206,6 @@ void gui_end_panel(Gui_Panel *panel){
 
 }
 
-Ceabed_API void gui_button(Gui_Panel *panel, Gui_ID id, String text){
+Cbed_API void gui_button(Gui_Panel *panel, Gui_ID id, String text){
 
 }

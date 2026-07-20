@@ -26,7 +26,7 @@ int main(){
 
     Buffer memory = {g_memory, Array_Len(g_memory)};
 
-    bool running = display_begin("Box", 1024, 768, Display_Flag_HW_Rendering)
+    bool running = display_begin("UI", 1024, 768, Display_Flag_HW_Rendering)
         && draw_begin(&memory);
 
     const char *font_file_name = "./bin/font.fnt";

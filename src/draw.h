@@ -4,8 +4,8 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_DRAW_H
-#define CEABED_DRAW_H
+#ifndef CBED_DRAW_H
+#define CBED_DRAW_H
 
 // TODO: Rather than giving each layer a fixed-size buffer, perhaps we should go back to
 // a linked-list approach. Calls to draw_text would allocate a command and a quad for every
@@ -47,35 +47,35 @@ typedef struct {
     u32 color;
 } Draw_Vertex;
 
-Ceabed_API Camera *draw_get_default_camera();
-Ceabed_API void draw_set_camera(Camera* camera);
-Ceabed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, float screen_h);
-Ceabed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, float screen_h);
+Cbed_API Camera *draw_get_default_camera();
+Cbed_API void draw_set_camera(Camera* camera);
+Cbed_API Vec2 camera_project(Camera* camera, Vec3 world_p, float screen_w, float screen_h);
+Cbed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, float screen_h);
 
-Ceabed_API Mat4 invert_view_matrix(Mat4 view);
-Ceabed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos);
-Ceabed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f);
-Ceabed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up);
+Cbed_API Mat4 invert_view_matrix(Mat4 view);
+Cbed_API Mat4 make_lookat_matrix(Vec3 camera_pos, Vec3 look_pos, Vec3 up_pos);
+Cbed_API Draw_XForm orthographic_projection(Rect bounds, float n, float f);
+Cbed_API Draw_XForm camera_view_from_polar(Vec3 camera_polar, Vec3 camera_target, Vec3 up);
 
-Ceabed_API bool draw_begin(Buffer *memory);
-Ceabed_API void draw_end();
-Ceabed_API void draw_frame_begin();
-Ceabed_API void draw_frame_end();
-Ceabed_API u32  draw_set_layer(u32 layer_index);
+Cbed_API bool draw_begin(Buffer *memory);
+Cbed_API void draw_end();
+Cbed_API void draw_frame_begin();
+Cbed_API void draw_frame_end();
+Cbed_API u32  draw_set_layer(u32 layer_index);
 
-Ceabed_API void draw_rect(Rect r, u32 color);
-Ceabed_API void draw_rect_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
-Ceabed_API void draw_rect_outline(Rect r, u32 color, float border);
-Ceabed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count);
-Ceabed_API void draw_2d_line(Vec2 p0, Vec2 p1, u32 color, f32 thickness);
-Ceabed_API void draw_circle(Vec2 center, float radius, u32 color);
+Cbed_API void draw_rect(Rect r, u32 color);
+Cbed_API void draw_rect_textured(Rect r, uint32_t color, Draw_Texture texture, Rect uvs);
+Cbed_API void draw_rect_outline(Rect r, u32 color, float border);
+Cbed_API void draw_vertices(Mat4 xform, Draw_Vertex *v, size_t vertex_count);
+Cbed_API void draw_2d_line(Vec2 p0, Vec2 p1, u32 color, f32 thickness);
+Cbed_API void draw_circle(Vec2 center, float radius, u32 color);
 
 // Default shaders
-Ceabed_API void draw_set_shader_3D();
-Ceabed_API void draw_set_shader_2D();
+Cbed_API void draw_set_shader_3D();
+Cbed_API void draw_set_shader_2D();
 
-Ceabed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
-Ceabed_API void draw_destroy_texture(Draw_Texture *texture);
+Cbed_API Draw_Texture draw_create_texture(u32 width, u32 height, u32 *pixels, u32 flags);
+Cbed_API void draw_destroy_texture(Draw_Texture *texture);
 
 //
 // Fonts
@@ -87,8 +87,8 @@ typedef enum{
     Font_Align_Right,
 } Font_Align;
 
-Ceabed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size);
-Ceabed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len);
-Ceabed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds);
+Cbed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size);
+Cbed_API void draw_text(Vec2 baseline, u32 color, Font *font, const char* text, size_t text_len);
+Cbed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *text, size_t text_len, Rect bounds);
 
-#endif // CEABED_DRAW_H
+#endif // CBED_DRAW_H

@@ -4,12 +4,12 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
-#ifndef CEABED_OS_H
-#define CEABED_OS_H
+#ifndef CBED_OS_H
+#define CBED_OS_H
 
 #include "common.h"
 
-Ceabed_API void os_sleep_ns(u64 nanoseconds);
-Ceabed_API u64  os_timestamp_ns();
+Cbed_API void os_sleep_ns(u64 nanoseconds);
+Cbed_API u64  os_timestamp_ns();
 
-#endif // CEABED_OS_H
+#endif // CBED_OS_H
