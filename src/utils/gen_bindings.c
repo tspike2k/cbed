@@ -4,6 +4,12 @@
 // License:   Boost Software License 1.0 (https://www.boost.org/LICENSE_1_0.txt)
 //------------------------------------------------------------------------------
 
+/*
+TODO:
+    enums
+*/
+
+
 #include "common.c"
 #include "files.c"
 
@@ -22,6 +28,7 @@ typedef enum {
     Token_Type_String,
     Token_Type_Greater_Than,
     Token_Type_Less_Than,
+    Token_Type_Slash,
 } Token_Type;
 
 typedef struct{
@@ -94,7 +101,7 @@ static Token next_token(Tokenizer *s){
             break;
     }
 
-    Token result = {0};
+    Token result = {Token_Type_Unknown};
     result.text.text = reader->text;
     result.line = s->line;
 
@@ -126,7 +133,7 @@ static Token next_token(Tokenizer *s){
                 result.line = s->line;
                 char prev_c = '\0';
                 while(reader->size){
-                    if(reader->text[0] == '*' && prev_c == '/'){
+                    if(reader->text[0] == '/' && prev_c == '*'){
                         result.text.size = reader->text - result.text.text;
                         str_advance(reader);
                         str_advance(reader);
@@ -138,7 +145,8 @@ static Token next_token(Tokenizer *s){
                 }
             }
             else{
-                assert(0);
+                result.type = Token_Type_Slash;
+                result.text.size = 1;
             }
         } break;
 
@@ -160,6 +168,16 @@ static Token next_token(Tokenizer *s){
 
         case '#':{
             result.type = Token_Type_Pound;
+            result.text.size = 1;
+        } break;
+
+        case '<':{
+            result.type = Token_Type_Less_Than;
+            result.text.size = 1;
+        } break;
+
+        case '>':{
+            result.type = Token_Type_Greater_Than;
             result.text.size = 1;
         } break;
 
@@ -205,45 +223,90 @@ static String trim_extension(String s){
     return result;
 }
 
-int main(){
-    Buffer memory = {g_memory, Array_Len(g_memory)};
+typedef enum{
+    Parse_Type_None,
+    Parse_Type_Comment,
+    Parse_Type_Include,
+} Parse_Type;
 
-    String reader = file_read_into_memory("./src/atlas.h", &memory);
+typedef struct{
+    Parse_Type type;
+    String     source;
+    u32        line;
+} Parse_Comment;
+
+typedef struct{
+    Parse_Type type;
+    String file_name;
+    bool   is_system_file;
+} Parse_Include;
+
+typedef struct Parse_Node Parse_Node;
+
+struct Parse_Node{
+    Parse_Node *next;
+    union{
+        Parse_Type    type;
+        Parse_Comment comment;
+        Parse_Include include;
+    };
+};
+
+typedef struct{
+    Parse_Node *first;
+    Parse_Node *last;
+} Parse_Nodes;
+
+static Parse_Node *add_parse_node(Parse_Nodes *nodes, u32 node_type, Buffer *memory){
+    Parse_Node *result = buffer_push_type(Parse_Node, memory);
+    result->type = node_type;
+
+    if(!nodes->first){
+        nodes->first = result;
+    }
+    else if(nodes->last){
+        nodes->last->next = result;
+    }
+
+    nodes->last = result;
+    return result;
+}
+
+Parse_Nodes parse_file(String source, Buffer *memory){
+    Parse_Nodes nodes = {0};
 
     Token prev_token = {0};
-
-    Tokenizer tokenizer = make_tokenizer(reader);
+    Tokenizer tokenizer = make_tokenizer(source);
     while(peek_token(&tokenizer).type != Token_Type_End_Of_File){
         Token token = next_token(&tokenizer);
 
         switch(token.type){
+            default: break;
+
             case Token_Type_Pound:{
                 Token peek = peek_token(&tokenizer);
                 if(str_match(peek.text, str("include"))){
-                    next_token(&tokenizer);
+                    next_token(&tokenizer); // Skip "include" token
+                    Parse_Node *node = add_parse_node(&nodes, Parse_Type_Include, memory);
+                    Parse_Include *include = &node->include;
 
-                    Token nt0 = next_token(&tokenizer);
-                    if(nt0.type == Token_Type_String){
-                        String file_name = trim_extension(nt0.text);
-                        printf("public import %.*s;\n", (int)file_name.size, file_name.text);
+                    token = next_token(&tokenizer);
+                    if(token.type == Token_Type_String){
+                        include->file_name = token.text;
+                        include->is_system_file = false;
                     }
-                    else if(nt0.type == Token_Type_Less_Than){
-#if 0
-                        file_name.text = tokenizer.source.text;
+                    else if(token.type == Token_Type_Less_Than){
+                        String file_name = tokenizer.source;
                         while(tokenizer.source.size){
                             if(peek_token(&tokenizer).type == Token_Type_Greater_Than){
                                 file_name.size = tokenizer.source.text - file_name.text;
+                                break;
                             }
                             next_token(&tokenizer);
                         }
 
-                        // TODO: Error!
-                        assert(file_name.size);
-#endif
-                    }
-                    else{
-                        // TODO: Error!
-                        assert(0);
+                        include->file_name = file_name;
+                        include->is_system_file = true;
                     }
                 }
                 else{
@@ -258,21 +321,69 @@ int main(){
             } break;
 
             case Token_Type_Line_Comment:{
-                if(should_add_extra_newline(prev_token, token))
-                    printf("\n");
+                /*if(should_add_extra_newline(prev_token, token))*/
+                    /*printf("\n");*/
 
-                printf("//%.*s\n", (int)token.text.size, token.text.text);
+                /*printf("//%.*s\n", (int)token.text.size, token.text.text);*/
             } break;
 
             case Token_Type_Multi_Line_Comment:{
-                if(should_add_extra_newline(prev_token, token))
-                    printf("\n");
+                /*if(should_add_extra_newline(prev_token, token))*/
+                    /*printf("\n");*/
 
-                printf("/*%.*s*/\n", (int)token.text.size, token.text.text);
+                //printf("/*%.*s*/\n", (int)token.text.size, token.text.text);
             } break;
         }
 
         prev_token = token;
+    }
+
+    return nodes;
+}
+
+static String str_copy(String s, Buffer *memory){
+    char *dest = buffer_push_bytes(memory, s.size+1); // Null-terminate, just in case.
+    memcpy(dest, s.text, s.size);
+    dest[s.size] = '\0';
+    String result = {dest, s.size};
+    return result;
+}
+
+int main(){
+    Buffer memory = {&g_memory[0], Array_Len(g_memory)};
+
+    /*String source = file_read_into_memory("./src/atlas.h", &memory);*/
+    String source = file_read_into_memory("./src/common.h", &memory);
+    Parse_Nodes parse_nodes = parse_file(source, &memory);
+    Parse_Node *prev_node = NULL;
+    for(Parse_Node *node = parse_nodes.first; node; node = node->next){
+        switch(node->type){
+            default: break;
+
+            case Parse_Type_Include:{
+                Buffer memory_restore = memory;
+
+                Parse_Include *include = &node->include;
+                String name = str_copy(include->file_name, &memory);
+                if(!str_match(name, str("stdint")) && !str_match(name, str("stdbool"))){
+                    name = trim_extension(name);
+                    for_count(u32, i, name.size){
+                        if(name.text[i] == '/' || name.text[i] == '\\'){
+                            name.text[i] = '.';
+                        }
+                    }
+
+                    if(!include->is_system_file){
+                        printf("public import %.*s;\n", (int)name.size, name.text);
+                    }
+                    else{
+                        printf("public import core.stdc.%.*s;\n", (int)name.size, name.text);
+                    }
+                }
+
+                memory = memory_restore;
+            } break;
+        }
     }
 
     return 0;
