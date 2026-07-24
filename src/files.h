@@ -7,8 +7,6 @@
 #ifndef CBED_FILES_H
 #define CBED_FILES_H
 
-// Test
-
 #include "common.h"
 
 enum{
