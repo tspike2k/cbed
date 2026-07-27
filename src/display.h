@@ -183,7 +183,7 @@ typedef struct{
 
 Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags);
 Cbed_API void display_end();
-Cbed_API Display_Backbuffer display_get_sw_backbuffer();
+Cbed_API void display_blit_to_backbuffer(u32 *pixels, u32 width, u32 height, int offset_x, int offset_y);
 Cbed_API void display_flip_backbuffer();
 Cbed_API Display_Info display_get_info();
 Cbed_API bool display_next_event(Event *event);

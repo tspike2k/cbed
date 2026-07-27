@@ -87,7 +87,7 @@ static bool img__tga_is_non_interleaved(TGA_Header* header){
 Cbed_API Img_Pixels img_load_tga_from_memory(const char *file_name, void* data, size_t data_size, Buffer *dest){
     Img_Pixels result = {0};
 
-    Buffer src = {data, data_size};
+    Buffer src = {(u8 *)data, data_size};
     TGA_Header *header = buffer_read_type(TGA_Header, &src);
     if(!header){
         fmt_msg("ERROR: {0} is too short to be a valid TGA file.\n", fmt_cstr(file_name));

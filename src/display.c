@@ -131,13 +131,13 @@ typedef XID GLXWindow;
 typedef XID GLXPbuffer;
 typedef void (*GLXextFuncPtr)(void);
 
-GLXFBConfig *glXChooseFBConfig(Display* dpy, int screen, const int *attribList, int *nitems);
-XVisualInfo *glXGetVisualFromFBConfig(Display *dpy, GLXFBConfig config);
-const char *glXQueryExtensionsString(Display *dpy, int screen);
-Bool glXMakeCurrent(Display *dpy, GLXDrawable drawable, GLXContext ctx);
-void glXDestroyContext(Display *dpy, GLXContext ctx);
-void glXSwapBuffers(Display *dpy, GLXDrawable drawable);
-GLXextFuncPtr glXGetProcAddressARB(const uint8_t *);
+Cbed_C_Lib GLXFBConfig *glXChooseFBConfig(Display* dpy, int screen, const int *attribList, int *nitems);
+Cbed_C_Lib XVisualInfo *glXGetVisualFromFBConfig(Display *dpy, GLXFBConfig config);
+Cbed_C_Lib const char *glXQueryExtensionsString(Display *dpy, int screen);
+Cbed_C_Lib Bool glXMakeCurrent(Display *dpy, GLXDrawable drawable, GLXContext ctx);
+Cbed_C_Lib void glXDestroyContext(Display *dpy, GLXContext ctx);
+Cbed_C_Lib void glXSwapBuffers(Display *dpy, GLXDrawable drawable);
+Cbed_C_Lib GLXextFuncPtr glXGetProcAddressARB(const uint8_t *);
 
 typedef GLXContext (*glXCreateContextAttribsARBFunc)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
 typedef void (*glXSwapIntervalEXTFunc)(Display* display, GLXDrawable drawable, int interval);
@@ -882,12 +882,42 @@ static bool display__process_event(XEvent *xevt, Event *evt){
     return event_translated;
 }
 
-Cbed_API Display_Backbuffer display_get_sw_backbuffer(){
-    Display_Backbuffer result = {0};
-    result.width  = g__display.window.width;
-    result.height = g__display.window.height;
-    result.pixels = g__display.window.backbuffer_pixels;
-    return result;
+Cbed_API void display_blit_to_backbuffer(u32 *pixels, u32 width, u32 height, int offset_x, int offset_y){
+    // TODO: Implement offsetting the blit!
+    assert(offset_x == 0);
+    assert(offset_y == 0);
+
+    u32  dest_w = g__display.window.width;
+    u32  dest_h = g__display.window.height;
+    u32 *dest = (u32*)g__display.window.backbuffer->data;
+    memset(dest, 0, dest_w*dest_h*sizeof(u32));
+
+    // Convert the backbuffer from RGBA to BGRA, which is what Xlib seems to use internally.
+    u32 dest_stride = 0;
+    u32 pixels_stride = 0;
+    if(width < dest_w)
+        dest_stride = dest_w - width;
+    else
+        pixels_stride = width - dest_w;
+
+    width  = Min(width, dest_w);
+    height = Min(height, dest_h);
+
+    for_count(u32, y, height){
+        for_count(u32, x, width){
+            u32 pixel = *pixels++;
+            u8 r = (u8)((pixel >> 16) & 0xff);
+            u8 g = (u8)((pixel >>  8) & 0xff);
+            u8 b = (u8)((pixel >>  0) & 0xff);
+            u8 a = (u8)((pixel >> 24) & 0xff);
+
+            *dest = (u32)(r <<  0) | (u32)(g <<  8)
+                  | (u32)(b << 16) | (u32)(a <<  24);
+            dest++;
+        }
+        pixels += pixels_stride;
+        dest += dest_stride;
+    }
 }
 
 Cbed_API void display_flip_backbuffer(){
