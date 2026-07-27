@@ -42,6 +42,11 @@ font_builder:
 ui: display
 	$(CC) $(FLAGS) -o ./bin/ui examples/ui.c ./bin/display.o $(LIBS)
 
+#NOTE: Experimental
+vulkan_test:
+	$(CC) -c $(FLAGS) -DDisplay_Use_Vulkan ./src/display.c -o ./bin/display.o $(LIBS)
+	$(CC) $(FLAGS) -o ./bin/vulkan_test examples/vulkan_test.c ./bin/display.o -lX11 -lXi -lm -lvulkan
+
 # NOTE: The code hotloading example is compiled differently than the others because it has
 # unusual requirements. In typical scenarios a library provides global symbols and the base
 # executable links against them. In our case, however, we would like to do the opposite;

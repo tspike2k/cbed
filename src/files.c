@@ -236,7 +236,7 @@ Cbed_API const char *get_executable_path(Buffer *buffer){
     if(count > 0){
         // Remove the trailing binary name from the result
         result = (char*)buffer->data;
-        char *place = str_find_last(make_str(result, count), '/');
+        char *place = str_find_last(make_str(result, (size_t)count), '/');
         assert(place);
         place++;
         *place = '\0';
@@ -333,7 +333,7 @@ static void file__walker_append_path(File__Walker *s, const char *path){
     size_t next_used = s->path_used + total_len;
     if(next_used > s->path_count){
         s->path_count = Max(next_used*2, s->path_count*2);
-        s->path = realloc(s->path, s->path_count);
+        s->path = (char *)realloc(s->path, s->path_count);
     }
 
     if(s->path_used > 0){
@@ -429,7 +429,7 @@ Cbed_API void file_walker_enter_directory(File_Walker *walker){
         if(dir){
             if(s->dirs_used == s->dirs_count){
                 s->dirs_count *= 2;
-                s->dirs = realloc(s->dirs, s->dirs_count);
+                s->dirs = (File__Dir *)realloc(s->dirs, s->dirs_count);
             }
 
             File__Dir *entry = &s->dirs[s->dirs_used++];
@@ -452,7 +452,7 @@ Cbed_API String file_walker_make_path(File_Walker *walker, Buffer *buffer){
     char *path_start = buffer_put_text(buffer, s->path, s->path_used-1);
     buffer_put_text(buffer, s->file_name, strlen(s->file_name));
     char * path_end = buffer_null_terminate(buffer);
-    String result = {path_start, path_end - path_start};
+    String result = {path_start, (size_t)(path_end - path_start)};
 
     return result;
 }

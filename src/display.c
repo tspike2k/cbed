@@ -20,11 +20,14 @@ TODO:
 // Linux
 //------------------------------------------------------------------------------
 
-#include "opengl.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XInput2.h>
 #include <stdlib.h> // free
+
+#ifndef Display_Use_Vulkan
+
+#include "opengl.h"
 
 enum{
     GLX_USE_GL           = 1,
@@ -146,6 +149,8 @@ static glXSwapIntervalEXTFunc         glxSwapIntervalEXT;
 static glXSwapIntervalMESAFunc        glxSwapIntervalMESA;
 static glXSwapIntervalSGIFunc         glxSwapIntervalSGI;
 
+#endif // Display_Use_Vulkan
+
 typedef struct{
     Window handle;
     uint32_t flags;
@@ -192,9 +197,12 @@ typedef struct{
     glXSwapIntervalSGIFunc         glxSwapIntervalSGI;
 
 #endif
+
+#ifndef Display_Use_Vulkan
     // TODO: These are shared between windows, right?
     GLXContext  glx_context;
     GLXFBConfig glx_fb_config;
+#endif
     Colormap    colormap;
 } Xlib;
 
@@ -247,6 +255,8 @@ static int display__stub_xlib_error_handler(Display* display, XErrorEvent* ev){
     fmt_msg_puts("\n");
     return 0;
 }
+
+#ifndef Display_Use_Vulkan
 
 static bool display__init_glx(XVisualInfo *visual_info, int screen){
     Xlib *s = &g__display;
@@ -361,6 +371,8 @@ static bool display__init_glx(XVisualInfo *visual_info, int screen){
     bool result = s->glx_context;
     return result;
 }
+
+#endif // Display_Use_Vulkan
 
 static Xlib_Window display__open_window(const char *window_title, XVisualInfo * visual_info, uint32_t width, uint32_t height, uint32_t flags){
     Xlib *s = &g__display;
@@ -882,7 +894,9 @@ Cbed_API void display_flip_backbuffer(){
     Xlib *s = &g__display;
     Xlib_Window *window = &s->window;
     if(window->flags & Display_Flag_HW_Rendering){
+#ifndef Display_Use_Vulkan
         glXSwapBuffers(s->display, window->handle);
+#endif
     }
     else{
         XPutImage(
@@ -944,6 +958,7 @@ Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t h
     int default_screen = DefaultScreen(s->display);
 
     XVisualInfo visual_info = {0};
+#ifndef Display_Use_Vulkan
     if(window_flags & Display_Flag_HW_Rendering){
         if(!display__init_glx(&visual_info, default_screen)){
             window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually clear the flag? Get the syntax right!
@@ -965,6 +980,19 @@ Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t h
     else{
         fmt_msg_puts("Unable to create window for display.\n");
     }
+#else
+    if(window_flags & Display_Flag_HW_Rendering){
+        if(vulkan_init()){
+            window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually clear the flag? Get the syntax right!
+            display__get_sw_visual_info(&visual_info, default_screen);
+        }
+    }
+    else{
+        display__get_sw_visual_info(&visual_info, default_screen);
+    }
+    if
+    display__get_sw_visual_info(&visual_info, default_screen);
+#endif
 
     s->use_XI2_for_mouse = display__request_XInput2_mouse_events();
 

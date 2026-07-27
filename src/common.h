@@ -129,7 +129,7 @@ Cbed_API bool  str_ends_with(String s, String end);
 // Conversion functions
 Cbed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
 
-#define str_lit(s) (String){(char *)s, Array_Len(s)}
+#define str_lit(s) (String){(s), Array_Len((s))-1} // sizeof includes the null terminator when used on string literals. Interesting.
 #define make_str(s, count) (String){(char*)(s), (count)}
 
 //

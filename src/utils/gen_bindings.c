@@ -29,6 +29,11 @@ typedef enum {
     Token_Type_Greater_Than,
     Token_Type_Less_Than,
     Token_Type_Slash,
+    Token_Type_API,
+    Token_Type_Open_Paren,
+    Token_Type_Close_Paren,
+    Token_Type_Comma,
+    Token_Type_Void,
 } Token_Type;
 
 typedef struct{
@@ -80,6 +85,37 @@ static char next_char(Tokenizer *s){
     return result;
 }
 
+static Token_Type check_keyword(u32 start_index, String keyword, Token_Type keyword_token_type, String s){
+    assert(keyword.size > start_index);
+
+    Token_Type result = Token_Type_Identifier;
+    if(s.size == keyword.size
+    && memcmp(&s.text[start_index], &keyword.text[start_index], s.size - start_index) == 0){
+        result = keyword_token_type;
+    }
+
+    return result;
+}
+
+static Token_Type parse_keyword_or_identifier(String s){
+    assert(s.size);
+
+    if(str_match(s, str_lit("Cbed_API"))){
+        int x  = 42;
+    }
+
+    Token_Type result;
+    switch(s.text[0]){
+        default:
+            result = Token_Type_Identifier; break;
+
+        case 'C': result = check_keyword(0, str_lit("Cbed_API"), Token_Type_API, s); break;
+        case 'v': result = check_keyword(0, str_lit("void"), Token_Type_Void, s); break;
+    }
+
+    return result;
+}
+
 static Token next_token(Tokenizer *s){
     String *reader = &s->source;
     if(reader->size <= 0){
@@ -105,7 +141,7 @@ static Token next_token(Tokenizer *s){
     result.text.text = reader->text;
     result.line = s->line;
 
-    char c  = next_char(s);
+    char c = next_char(s);
     switch(c){
         case '/':{
             char c1 = peek_char(s);
@@ -181,18 +217,29 @@ static Token next_token(Tokenizer *s){
             result.text.size = 1;
         } break;
 
+        case ',':{
+            result.type = Token_Type_Comma;
+            result.text.size = 1;
+        } break;
+
+        case '(':{
+            result.type = Token_Type_Open_Paren;
+            result.text.size = 1;
+        } break;
+
+        case ')':{
+            result.type = Token_Type_Close_Paren;
+            result.text.size = 1;
+        } break;
+
         default:{
             if(char_is_alpha(c)){
-                // TODO: Handle keywords, as well.
                 // TODO: Allow numbers in identifiers!
-                result.type = Token_Type_Identifier;
-                while(reader->size && char_is_alpha(reader->text[0])){
+                while(reader->size && (char_is_alpha(reader->text[0]) || reader->text[0] == '_')){
                     str_advance(reader);
                 }
                 result.text.size = reader->text - result.text.text;
-            }
-            else{
-
+                result.type = parse_keyword_or_identifier(result.text);
             }
         } break;
     }
@@ -227,6 +274,7 @@ typedef enum{
     Parse_Type_None,
     Parse_Type_Comment,
     Parse_Type_Include,
+    Parse_Type_Function,
 } Parse_Type;
 
 typedef struct{
@@ -241,14 +289,31 @@ typedef struct{
     bool   is_system_file;
 } Parse_Include;
 
+typedef struct Var_Decl Var_Decl;
+
+struct Var_Decl{
+    Var_Decl *next;
+    String    name;
+    String    type_name;
+    String    comment; // Used for comments like these in struct declarations
+};
+
+typedef struct{
+    Parse_Type type;
+    String     name;
+    String     return_type;
+    Var_Decl   parameters;
+} Parse_Function;
+
 typedef struct Parse_Node Parse_Node;
 
 struct Parse_Node{
     Parse_Node *next;
     union{
-        Parse_Type    type;
-        Parse_Comment comment;
-        Parse_Include include;
+        Parse_Type     type;
+        Parse_Comment  comment;
+        Parse_Include  include;
+        Parse_Function function;
     };
 };
 
@@ -320,6 +385,42 @@ Parse_Nodes parse_file(String source, Buffer *memory){
                 }
             } break;
 
+            case Token_Type_API:{
+                Parse_Node *node = add_parse_node(&nodes, Parse_Type_Function, memory);
+                Parse_Function *func = &node->function;
+
+                func->return_type = next_token(&tokenizer).text;
+                func->name        = next_token(&tokenizer).text;
+                assert(next_token(&tokenizer).type == Token_Type_Open_Paren); // TODO: Handle errors
+
+                Var_Decl *param = &func->parameters;
+                Token peek = peek_token(&tokenizer);
+                if(peek.type == Token_Type_Void){
+                    param->type_name = str_lit("void");
+                    next_token(&tokenizer);
+                }
+                else{
+                    while(peek.type != Token_Type_End_Of_File){
+                        param->type_name = next_token(&tokenizer).text;
+                        param->name      = next_token(&tokenizer).text;
+
+                        peek = peek_token(&tokenizer);
+                        if(peek.type == Token_Type_Comma){
+                            next_token(&tokenizer);
+                        }
+                        else if(peek.type == Token_Type_Close_Paren){
+                            break;
+                        }
+                        else{
+                            assert(0); // TODO: Handle errors.
+                        }
+                    }
+                }
+
+                assert(peek_token(&tokenizer).type == Token_Type_Close_Paren); // TODO: Handle errors.
+                next_token(&tokenizer);
+            } break;
+
             case Token_Type_Line_Comment:{
                 /*if(should_add_extra_newline(prev_token, token))*/
                     /*printf("\n");*/
@@ -365,8 +466,8 @@ int main(){
 
                 Parse_Include *include = &node->include;
                 String name = str_copy(include->file_name, &memory);
+                name = trim_extension(name);
                 if(!str_match(name, str("stdint")) && !str_match(name, str("stdbool"))){
-                    name = trim_extension(name);
                     for_count(u32, i, name.size){
                         if(name.text[i] == '/' || name.text[i] == '\\'){
                             name.text[i] = '.';
@@ -382,6 +483,18 @@ int main(){
                 }
 
                 memory = memory_restore;
+            } break;
+
+            case Parse_Type_Function:{
+                Parse_Function *func = &node->function;
+
+                printf(
+                    "extern(C) %.*s %.*s(",
+                    (int)func->return_type.size, func->return_type.text,
+                    (int)func->name.size, func->name.text
+                );
+
+                printf(")\n");
             } break;
         }
     }
