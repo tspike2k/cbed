@@ -135,6 +135,21 @@ template<typename T> void clamp(T* a, T min_val, T max_val){
 }
 
 Vec2 operator+(Vec2 l, Vec2 r);
+Vec2 operator-(Vec2 l, f32 r);
+void operator+=(Vec2 &l, Vec2 r);
+void operator-=(Vec2 &l, Vec2 r);
+Vec2 operator*(Vec2 l, f32 r);
+Vec2 operator-(Vec2 l);
+Vec2 operator*(Vec2 l, Vec2 r);
+
+Vec3 operator*(Vec3 l, f32 r);
+Vec3 operator*(f32 l, Vec3 r);
+Vec3 operator*(Vec3 l, Vec3 r);
+Vec3 operator+(Vec3 l, Vec3 r);
+Vec3 operator-(Vec3 l, Vec3 r);
+void operator+=(Vec3 &l, Vec3 r);
+void operator-=(Vec3 &l, Vec3 r);
+Vec3 operator-(Vec3 l);
 
 #endif // __cplusplus
 

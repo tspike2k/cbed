@@ -179,7 +179,7 @@ Cbed_API void file_close(File* file){
 Cbed_API size_t file_get_size(File* file){
     int fd = (int)file->handle;
     struct stat s;
-    size_t result;
+    size_t result = 0;
     if(fstat(fd, &s) == 0){
         result = s.st_size;
     }

@@ -483,4 +483,168 @@ Vec2 operator+(Vec2 l, Vec2 r){
     return result;
 }
 
+Vec2 operator-(Vec2 l, Vec2 r){
+    Vec2 result = {
+        l.x - r.x,
+        l.y - r.y,
+    };
+    return result;
+}
+
+Vec2 operator*(Vec2 l, f32 r){
+    Vec2 result = {
+        l.x * r,
+        l.y * r,
+    };
+    return result;
+}
+
+void operator+=(Vec2 &l, Vec2 r){
+    l.x += r.x;
+    l.y += r.y;
+}
+
+void operator-=(Vec2 &l, Vec2 r){
+    l.x -= r.x;
+    l.y -= r.y;
+}
+
+Vec2 operator-(Vec2 l){
+    Vec2 result = {
+        -l.x,
+        -l.y,
+    };
+    return result;
+}
+
+Vec2 operator*(Vec2 l, Vec2 r){
+    Vec2 result = {
+        l.x * r.x,
+        l.y * r.y,
+    };
+    return result;
+}
+
+Vec3 operator*(Vec3 l, f32 r){
+    Vec3 result = {
+        l.x * r,
+        l.y * r,
+        l.z * r,
+    };
+    return result;
+}
+
+Vec3 operator*(f32 l, Vec3 r){
+    Vec3 result = {
+        r.x * l,
+        r.y * l,
+        r.z * l,
+    };
+    return result;
+}
+
+Vec3 operator*(Vec3 l, Vec3 r){
+    Vec3 result = {
+        l.x * r.x,
+        l.y * r.y,
+        l.z * r.z,
+    };
+    return result;
+}
+
+Vec3 operator+(Vec3 l, Vec3 r){
+    Vec3 result = {
+        l.x + r.x,
+        l.y + r.y,
+        l.z + r.z,
+    };
+    return result;
+}
+
+Vec3 operator-(Vec3 l, Vec3 r){
+    Vec3 result = {
+        l.x - r.x,
+        l.y - r.y,
+        l.z - r.z,
+    };
+    return result;
+}
+
+void operator+=(Vec3 &l, Vec3 r){
+    l.x += r.x;
+    l.y += r.y;
+    l.z += r.z;
+}
+
+void operator-=(Vec3 &l, Vec3 r){
+    l.x -= r.x;
+    l.y -= r.y;
+    l.z -= r.z;
+}
+
+Vec3 operator-(Vec3 l){
+    Vec3 result = {
+        -l.x,
+        -l.y,
+        -l.z
+    };
+    return result;
+}
+
+Vec3 operator+(Vec3 l, f32 r){
+    Vec3 result = {
+        l.x + r,
+        l.y + r,
+        l.z + r,
+    };
+    return result;
+}
+
+Vec3 operator+(f32 l, Vec3 r){
+    Vec3 result = {
+        r.x + l,
+        r.y + l,
+        r.z + l,
+    };
+    return result;
+}
+
+Vec3 operator-(Vec3 l, f32 r){
+    Vec3 result = {
+        l.x - r,
+        l.y - r,
+        l.z - r,
+    };
+    return result;
+}
+
+Vec3 operator-(f32 l, Vec3 r){
+    Vec3 result = {
+        l - r.x,
+        l - r.y,
+        l - r.z,
+    };
+    return result;
+}
+
+Vec4 operator*(Vec4 l, f32 r){
+    Vec4 result = {
+        l.x * r,
+        l.y * r,
+        l.z * r,
+        l.w * r,
+    };
+    return result;
+}
+
+Vec4 operator+(Vec4 l, Vec4 r){
+    Vec4 result = {
+        l.x + r.x,
+        l.y + r.y,
+        l.z + r.z,
+        l.w + r.w,
+    };
+    return result;
+}
+
 #endif // __cplusplus

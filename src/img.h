@@ -11,9 +11,10 @@
 
 // Internally, colors are in the 32-bit RGBA LE format. This means hex literals for colors
 // have the following format: 0xAABBGGRR
+Cbed_API u32 premultiply_alpha(u32 c);
 Cbed_API u32 bgra_to_rgba(u32 c);
 Cbed_API u32 rgba_to_bgra(u32 c);
-
+Cbed_API u32 color_from_v4(f32 r, f32 g, f32 b, f32 a);
 
 typedef struct{
     u32 *data;
