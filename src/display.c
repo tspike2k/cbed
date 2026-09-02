@@ -12,7 +12,12 @@
 TODO:
     - Should we rename this to desktop.d? events.d? pal.d (Platform Abstraction Layer)?
     - Add function to copy to clipboard
-
+    - Use XPresent to sync to monitor refresh rate? It sounds like the idea is you can
+      request to be sent an event when the display flips, then block on events. Then we
+      run the simulation when the flip happens. Does this mean we need to interpolate
+      frames anyway? Also, how does this affect how the user polls for events? Or should
+      we translate to a Event_Display_Flipped event and ask the client code to handle it?
+    - Mouse grabbing doesn't always work for unknown reasons.
 */
 
 #ifdef OS_Linux

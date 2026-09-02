@@ -77,6 +77,8 @@ typedef struct{
     Vec2 extents;
 } Rect;
 
+Cbed_API bool circles_overlap(Vec2 a_center, f32 a_radius, Vec2 b_center, f32 b_radius);
+
 Cbed_API Rect rect_from_min_wh(Vec2 p, float w, float h);
 Cbed_API Rect rect_from_min_max(Vec2 min_p, Vec2 max_p);
 Cbed_API Vec2 rect_min(Rect r);

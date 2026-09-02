@@ -194,6 +194,11 @@ Cbed_API float v3_dist_sq(Vec3 a, Vec3 b){
     return result;
 }
 
+Cbed_API bool circles_overlap(Vec2 a_center, f32 a_radius, Vec2 b_center, f32 b_radius){
+    bool result = v2_dist_sq(a_center, b_center) < squared(a_radius + b_radius);
+    return result;
+}
+
 Cbed_API float lerp(float start, float end, float t){
     float result = (end * t) + (start * (1.0f - t));
     return result;
