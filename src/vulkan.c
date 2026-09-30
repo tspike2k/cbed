@@ -7,20 +7,39 @@
 /*
     NOTE: This is based off the following resources:
 
+    "Learn Modern Vulkan in 2 Hours (Dynamic Rendering, No Render Passes!)" by constref (https://www.youtube.com/watch?v=DC9FBRQKNck)
     https://www.howtovulkan.com/
     https://vulkan-tutorial.com/
-    "Learn Modern Vulkan in 2 Hours (Dynamic Rendering, No Render Passes!)" by constref (https://www.youtube.com/watch?v=DC9FBRQKNck)
+
+    TODO: *THIS* is probably the correct tutorial for starting out:
+    https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/00_Base_code.html
 */
 
 #include "vulkan.h"
 #include <vulkan/vulkan.h>
 
+#define Vulkan__Target_API_Version VK_API_VERSION_1_4
+
 typedef struct{
-    VkInstance   instance;
-    VkSurfaceKHR surface;
+    VkInstance     instance;
+    VkDevice       device;
+    VkSurfaceKHR   surface;
+    VkQueue        device_queue;
+    u32            queue_family_index;
+    VkSwapchainKHR swapchain;
+
+    // Client data.
+    const char *app_name;
+    const char **extensions;
+    u32         extensions_count;
+    bool        debug;
+    u32         window_w;
+    u32         window_h;
 } Vulkan_State;
 
 static Vulkan_State vulkan__state;
+
+static bool vulkan__init_surface();
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan__debug_msg_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -34,13 +53,16 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan__debug_msg_callback(
     return VK_FALSE;
 }
 
-static bool vulkan__create_instance(const char *app_name, const char *extensions[], u32 extensions_count, bool debug_mode){
+static bool vulkan__init(void){
     Vulkan_State *s = &vulkan__state;
 
+    //
+    // Create a new Vulkan instance
+    //
     VkApplicationInfo app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = app_name,
-        .apiVersion = VK_API_VERSION_1_4
+        .pApplicationName = s->app_name,
+        .apiVersion = Vulkan__Target_API_Version
     };
 
     const char *layers[] = {
@@ -58,14 +80,16 @@ static bool vulkan__create_instance(const char *app_name, const char *extensions
         .pfnUserCallback = vulkan__debug_msg_callback,
     };
 
+    // TODO: Should we use vkEnumerateInstanceExtensionProperties to make sure the extensions
+    // are supported before we try to call vkCreateInstance? It seems rather uneeded.
     VkInstanceCreateInfo instance_info = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo        = &app_info,
-        .enabledExtensionCount   = extensions_count,
-        .ppEnabledExtensionNames = extensions,
+        .enabledExtensionCount   = s->extensions_count,
+        .ppEnabledExtensionNames = s->extensions,
     };
 
-    if(debug_mode){
+    if(s->debug){
         instance_info.pNext               = &debug_info;
         instance_info.enabledLayerCount   = layers_count;
         instance_info.ppEnabledLayerNames = layers;
@@ -76,16 +100,27 @@ static bool vulkan__create_instance(const char *app_name, const char *extensions
         return false;
     }
 
-    //
-    // Find the physical device.
-    //
-    // TODO: Allow player to configure which device to prefer. By index? By name?
+    // NOTE: According to the official "Khronos Vulkan Tutorial", the surface must be created
+    // right after creating the Vulkan instance. This is because it can affect list physical
+    // device list. See here for more information:
+    // https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/01_Presentation/00_Window_surface.html
+    if(!vulkan__init_surface()){
+        // TODO: Report error?
+        return false;
+    }
 
-    // NOTE: We have to cal this function once to get the count, then another time
-    // once we have the memory for it.
+    //
+    // Find the physical device. This is a list of Vulkan-capable hardware connected
+    // to the host PC.
+    //
+
     u32 device_count = 0;
-    VkPhysicalDevice device = NULL;
+    VkPhysicalDevice physical_device = NULL;
 
+    // TODO: Allow player to configure which device to prefer. By index? By name?
+    //
+    // NOTE: We have to call this function once to get the count, then another time
+    // once we have the memory for it. Several Vulkan functions work this way.
     vkEnumeratePhysicalDevices(s->instance, &device_count, NULL);
     if(device_count){
         VkPhysicalDevice devices[device_count];
@@ -93,42 +128,261 @@ static bool vulkan__create_instance(const char *app_name, const char *extensions
 
         for_count(u32, i, device_count){
             // TODO: Is there a good rule of thumb for which device to choose?
-            VkPhysicalDeviceProperties props;
-            vkGetPhysicalDeviceProperties(devices[i], &props);
-            if(props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){
-                const char *device_name = props.deviceName;
-                fmt_msg("Target Vulkan device[{0}]: {1}\n", fmt_i(i), fmt_cstr(device_name));
-                device = devices[i];
+            VkPhysicalDeviceProperties2 props = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+            vkGetPhysicalDeviceProperties2(devices[i], &props);
+            if(props.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+            && props.properties.apiVersion >= Vulkan__Target_API_Version){
+                const char *device_name = props.properties.deviceName;
+                fmt_msg("Target Vulkan physical device[{0}]: {1}\n", fmt_i(i), fmt_cstr(device_name));
+                physical_device = devices[i];
                 break;
             }
         }
     }
 
-    if(!device){
+    if(!physical_device){
         fmt_msg_puts("ERROR: Unable to get physical Vulkan device.\n");
         return false;
     }
 
     //
-    // Get the graphics queue.
+    // Get the graphics queue. This is used to submit work from the CPU to the GPU. // TODO: Is this accurate?
+    // Normally, an application will only need one of these.
     //
-#if 0
     u32 queue_families_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_families_count, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties2(physical_device, &queue_families_count, NULL);
+    bool found_queue_family = false;
 
     if(queue_families_count){
-        VkQueueFamilyProperties2 queue_famiy_props[queue_families_count];
-        vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_families_count, queue_famiy_props);
+        VkQueueFamilyProperties2 queue_family_props[queue_families_count];
+        for_count(u32, i, queue_families_count){
+            queue_family_props[i] = (VkQueueFamilyProperties2){
+                .sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
+            };
+        }
+        vkGetPhysicalDeviceQueueFamilyProperties2(physical_device, &queue_families_count, queue_family_props);
 
         for_count(u32, i, queue_families_count){
             VkBool32 can_present = VK_FALSE;
 
+            vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, s->surface, &can_present);
+
+            VkQueueFamilyProperties2 *p = &queue_family_props[i];
+            if(p->queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT && can_present){
+                s->queue_family_index = i;
+                found_queue_family = true;
+                break;
+            }
         }
     }
+
+    if(!found_queue_family){
+        fmt_msg_puts("ERROR: Unable to find Vulkan queue family.\n");
+        return false;
+    }
+
+#if 0
+    //
+    // Get the features of each major Vulkan version the physical device supports. We chain each
+    // version feature structure together to get the information all in one call.
+    //
+    // TODO: Do we really need to do this? Can't we just request the features we want and
+    // check for errors?
+	VkPhysicalDeviceVulkan14Features features_1_4 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES
+    };
+	VkPhysicalDeviceVulkan13Features features_1_3 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .pNext = &features_1_4
+    };
+	VkPhysicalDeviceVulkan12Features features_1_2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = &features_1_3
+    };
+	VkPhysicalDeviceFeatures2 features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &features_1_2
+    };
+	vkGetPhysicalDeviceFeatures2(physical_device, &features);
+
+    // Make sure the features we'll be relying on are supported.
+    bool supports_features = features_1_3.dynamicRendering && features_1_3.synchronization2
+                          && features_1_2.timelineSemaphore;
+	if(!supports_features){
+		fmt_msg_puts("ERROR: Vulkan device doesn't support required features.\n");
+		return false;
+	}
 #endif
 
+    // Now request the device feature we need.
+    VkPhysicalDeviceVulkan14Features features_1_4 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
+	};
+	VkPhysicalDeviceVulkan13Features features_1_3 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.pNext = &features_1_4,
+		.synchronization2 = VK_TRUE, // Better synchronization features
+		.dynamicRendering = VK_TRUE, // Removed the need for the old render pass use
+	};
+    VkPhysicalDeviceVulkan12Features features_1_2 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = &features_1_3,
+		.timelineSemaphore = VK_TRUE
+	};
+    VkPhysicalDeviceFeatures2 features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &features_1_2
+    };
+
+    float queue_priority[] = {1.0f};
+	VkDeviceQueueCreateInfo queue_create_info = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		.queueFamilyIndex = s->queue_family_index,
+		.queueCount = Array_Len(queue_priority),
+		.pQueuePriorities = queue_priority
+	};
+
+    const char *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+    VkDeviceCreateInfo device_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.pNext = &features,
+		.queueCreateInfoCount = 1,
+		.pQueueCreateInfos = &queue_create_info,
+		.enabledExtensionCount = Array_Len(device_extensions),
+		.ppEnabledExtensionNames = device_extensions,
+    };
+
+    // Create an instance of the physical device, called a "logical device."
+	if(vkCreateDevice(physical_device, &device_create_info, NULL, &s->device) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to create Vulkan logical device with requested features.\n");
+		return false;
+	}
+
+    s->device_queue = 0;
+    vkGetDeviceQueue(s->device, s->queue_family_index, 0, &s->device_queue);
+    if(!s->device_queue){
+        fmt_msg_puts("ERROR: Unable to create get the device queue.\n");
+        return false;
+    }
+
+    //
+    // Choose and setup the swapchain
+    //
+
+    VkSurfaceCapabilitiesKHR surface_capabilities;
+    if(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, s->surface, &surface_capabilities) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to query surface capabilities of Vulkan physical device.\n");
+        return false;
+    }
+
+    VkExtent2D swapchain_extent = surface_capabilities.currentExtent;
+    if(swapchain_extent.width == 0xFFFFFFFF){
+        // NOTE: This is an odd Wayland design decision. If the surface capability extents are
+        // 0xFFFFFFFF, then the swapchain needs its own extents set to the size of the window.
+        // As a window manager, you think Wayland would know the window extents and pass that to
+        // us, but I guess it needs our help here.
+        swapchain_extent = (VkExtent2D){s->window_w, s->window_h};
+    }
+
+    // TODO: Some tutorials say we should use less. Should we? Two is double buffering, right?
+    // Why would we want more than that? Or is this the queue that Vsync will block on once
+    // it's full?
+    u32 min_image_count = surface_capabilities.minImageCount;
+
+    // This determines the way images are presented to the screen. This is appearently Vsync mode
+    // and should be usable on all devices that support Vulkan.
+    // https://www.howtovulkan.com/#swapchain
+    u32 present_mode = VK_PRESENT_MODE_FIFO_KHR;
+
+    // Appearently, this pairing of image formats and colorspace should be availible on all
+    // Vulkan devices.
+    // https://www.howtovulkan.com/#swapchain
+    VkFormat image_format = VK_FORMAT_B8G8R8A8_SRGB;
+    u32 image_colorspace  = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+
+    VkSwapchainCreateInfoKHR swapchain_creat_info = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = s->surface,
+        .minImageCount = min_image_count,
+        .imageFormat = image_format,
+        .imageColorSpace = image_colorspace,
+        .imageExtent = swapchain_extent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = present_mode
+    };
+
+    if(vkCreateSwapchainKHR(s->device, &swapchain_creat_info, NULL, &s->swapchain) != VK_SUCCESS){
+        // TODO: Give some ideas as to what sort of formats we were questing? Would that help
+        // a user?
+        fmt_msg_puts("ERROR: Unable to create Vulkan swapchain.\n");
+        return false;
+    }
+
+    // TODO: Do we need to store the images? Why?
+    u32 image_count= 0;
+    /*chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr));*/
+    /*swapchainImages.resize(imageCount);*/
+    /*chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data()));*/
+    /*swapchainImageViews.resize(imageCount);*/
+
+    // These formats are supposed to be supported by all Vulkan devices:
+    // https://www.howtovulkan.com/#swapchain
+    VkFormat depth_format = VK_FORMAT_UNDEFINED;
+    VkFormat target_depth_formats[] = {VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT};
+    for_count(u32, i, Array_Len(target_depth_formats)){
+        VkFormat target_format = target_depth_formats[i];
+
+        VkFormatProperties2 props = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+        vkGetPhysicalDeviceFormatProperties2(physical_device, target_format, &props);
+        if(props.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT){
+            depth_format = target_format;
+            break;
+        }
+    }
+
+    if(depth_format == VK_FORMAT_UNDEFINED){
+        fmt_msg_puts("ERROR: Unable to get depth buffer format for Vulkan surface.\n");
+        return false;
+    }
+
+    VkImageCreateInfo image_create_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = depth_format,
+        .extent = {s->window_w, s->window_h}, // TODO: Should this match the swapchain_extent?
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
 
     return true;
+}
+
+Cbed_API void vulkan_destroy(){
+    Vulkan_State *s = &vulkan__state;
+
+    if(s->swapchain){
+        vkDestroySwapchainKHR(s->device, s->swapchain, NULL);
+    }
+
+    if(s->device){
+        vkDestroyDevice(s->device, NULL);
+    }
+
+    if(s->surface){
+        vkDestroySurfaceKHR(s->instance, s->surface, NULL);
+    }
+
+    if(s->instance){
+        vkDestroyInstance(s->instance, NULL);
+    }
 }
 
 ////
@@ -141,33 +395,23 @@ static bool vulkan__create_instance(const char *app_name, const char *extensions
 #include <X11/Xlib.h>
 #include <vulkan/vulkan_xlib.h>
 
-Cbed_API bool vulkan_init(Display *display, Window window, const char* app_name, bool debugging){
+const char* vulkan__extensions[] ={
+    "VK_KHR_surface",
+    VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+    VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+};
+
+static Display *vulkan__display;
+static Window   vulkan__window;
+
+static bool vulkan__init_surface(){
     Vulkan_State *s = &vulkan__state;
-
-    bool result = true;
-
-    const char* extensions[] ={
-        "VK_KHR_surface",
-        VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-    };
-
-    u32 extensions_count = Array_Len(extensions);
-    if(!debugging){
-        // If we're not debugging, trim off the debug extension string.
-        extensions_count--;
-    }
-
-    if(!vulkan__create_instance(app_name, extensions, extensions_count, debugging)){
-        // TODO: Report error?
-        return false;
-    }
 
     VkXlibSurfaceCreateInfoKHR surface_info = {
         .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
         // .flags = ???, // TODO: What flags? Do we need to set flags?
-        .dpy = display,
-        .window = window,
+        .dpy    = vulkan__display,
+        .window = vulkan__window,
     };
 
     if(vkCreateXlibSurfaceKHR(s->instance, &surface_info, NULL, &s->surface) != VK_SUCCESS){
@@ -175,48 +419,40 @@ Cbed_API bool vulkan_init(Display *display, Window window, const char* app_name,
         return false;
     }
 
-
-#if 0
-
-
-    u32 queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(devices[device_index], &queue_family_count, NULL);
-    VkQueueFamilyProperties families[queue_family_count];
-    vkGetPhysicalDeviceQueueFamilyProperties(devices[decive_index], &queue_family_count, queueFamilies);
-    u32 family_index = 0;
-    for_count(u32, i, queue_family_count){
-        if(families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            family_index = i;
-            break;
-        }
-    }
-
-    // TODO: Verify the family can, in fact, present graphics to the surface.
-
-    float priority[queue_family_count] = {1.0f};
-    VkDeviceQueueCreateInfo queue_info{
-        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .queueFamilyIndex = family_index,
-        .queueCount = 1,
-        .pQueuePriorities = priority
-    };
-#endif
-    VkSurfaceKHR surface;
-    /*vkCreateXlibSurfaceKHR(window, instance, NULL, &surface);*/
-
-    return result;
+    return true;
 }
 
-#endif // Linux
-
-Cbed_API void vulkan_destroy(){
+Cbed_API bool vulkan_init(Display *display, Window window, u32 window_w, u32 window_h, const char* app_name, bool debugging){
     Vulkan_State *s = &vulkan__state;
 
-    if(s->surface){
-        vkDestroySurfaceKHR(s->instance, s->surface, NULL);
+    vulkan__display = display;
+    vulkan__window  = window;
+
+    s->app_name         = app_name;
+    s->debug            = debugging;
+    s->extensions       = vulkan__extensions;
+    s->extensions_count = Array_Len(vulkan__extensions);
+    s->window_w         = window_w;
+    s->window_h         = window_h;
+    if(!debugging){
+        // If we're not in debug mode, we should trim the ending debug extension.
+        // Thanks to string spooling, a simple pointer comparison should work to
+        // tell if these strings match, for a sanity check.
+        assert(s->extensions[s->extensions_count-1] == VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        s->extensions_count--;
     }
 
-    if(s->instance){
-        vkDestroyInstance(s->instance, NULL);
+    if(!vulkan__init()){
+        // TODO: Report error?
+        return false;
     }
+
+    return true;
 }
+
+////
+//
+// Linux
+//
+////
+#endif

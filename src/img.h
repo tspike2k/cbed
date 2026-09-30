@@ -14,7 +14,7 @@
 Cbed_API u32 premultiply_alpha(u32 c);
 Cbed_API u32 bgra_to_rgba(u32 c);
 Cbed_API u32 rgba_to_bgra(u32 c);
-Cbed_API u32 color_from_v4(f32 r, f32 g, f32 b, f32 a);
+Cbed_API u32 color_from_v4(Vec4 v);
 
 typedef struct{
     u32 *data;

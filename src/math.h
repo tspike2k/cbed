@@ -33,8 +33,13 @@ typedef struct{
     float x, y;
 } Vec2;
 
-typedef struct{
-    float x, y, z;
+typedef union{
+    struct{
+        float x, y, z;
+    };
+    struct{
+        float r, g, b;
+    };
 } Vec3;
 
 typedef union{
@@ -46,7 +51,10 @@ typedef union{
     };
 } Vec4;
 
-Cbed_API Vec2  v2(f32 x, f32 y);
+#define v2(x, y) (Vec2){(f32)(x), (f32)(y)}
+#define v3(x, y, z) (Vec3){{(f32)(x), (f32)(y), (f32)(z)}}
+#define v4(x, y, z, w) (Vec4){{(f32)(x), (f32)(y), (f32)(z), (f32)(w)}}
+
 Cbed_API Vec2  v2_sub(Vec2 a, Vec2 b);
 Cbed_API Vec2  v2_add(Vec2 a, Vec2 b);
 Cbed_API Vec2  v2_mul(Vec2 a, Vec2 b);
@@ -66,7 +74,6 @@ Cbed_API float v3_length(Vec3 v);
 Cbed_API float v2_dot(Vec2 a, Vec2 b);
 Cbed_API float v3_dot(Vec3 a, Vec3 b);
 Cbed_API Vec3  cross(Vec3 a, Vec3 b);
-Cbed_API Vec4  v4(f32 x, f32 y, f32 z, f32 w);
 
 Cbed_API float squared(float n);
 Cbed_API float v2_dist_sq(Vec2 a, Vec2 b);
@@ -78,6 +85,11 @@ typedef struct{
 } Rect;
 
 Cbed_API bool circles_overlap(Vec2 a_center, f32 a_radius, Vec2 b_center, f32 b_radius);
+
+Cbed_API f32 mod(f32 a, f32 b);
+Cbed_API float lerp(float start, float end, float t);
+Cbed_API Vec4 v4_lerp(Vec4 a, Vec4 b, float t);
+Cbed_API Vec3 v3_lerp(Vec3 a, Vec3 b, float t);
 
 Cbed_API Rect rect_from_min_wh(Vec2 p, float w, float h);
 Cbed_API Rect rect_from_min_max(Vec2 min_p, Vec2 max_p);

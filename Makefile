@@ -38,6 +38,10 @@ pad: display
 font_builder:
 	$(CC) $(FLAGS) -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype -lm
 
+mandelbrot: display
+	$(CC) $(FLAGS) -o ./bin/mandelbrot examples/mandelbrot.c ./bin/display.o $(LIBS)
+
+
 #NOTE: Experimental
 ui: display
 	$(CC) $(FLAGS) -o ./bin/ui examples/ui.c ./bin/display.o $(LIBS)

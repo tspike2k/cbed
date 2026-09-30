@@ -48,11 +48,11 @@ Cbed_API u32 rgba_to_bgra(u32 c){
     return result;
 }
 
-Cbed_API u32 color_from_v4(f32 r, f32 g, f32 b, f32 a){
-    u32 cr = (u32)(r * 255.0f);
-    u32 cg = (u32)(g * 255.0f);
-    u32 cb = (u32)(b * 255.0f);
-    u32 ca = (u32)(a * 255.0f);
+Cbed_API u32 color_from_v4(Vec4 v){
+    u32 cr = (u32)(v.r * 255.0f);
+    u32 cg = (u32)(v.g * 255.0f);
+    u32 cb = (u32)(v.b * 255.0f);
+    u32 ca = (u32)(v.a * 255.0f);
 
     u32 result = (cr << 0) | (cg << 8) | (cb << 16) | (ca << 24);
     return result;

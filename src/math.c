@@ -12,13 +12,6 @@ void clampf(f32 *value, f32 min_val, f32 max_val){
 
 #define Vec_OP(c, op) (a.c op b.c)
 
-Cbed_API Vec2 v2(f32 x, f32 y){
-    Vec2 result = {
-        x, y
-    };
-    return result;
-}
-
 Cbed_API Vec2 v2_sub(Vec2 a, Vec2 b){
     Vec2 result = {
         Vec_OP(x, -),
@@ -60,47 +53,47 @@ Cbed_API Vec2 v2_div(Vec2 a, Vec2 b){
 }
 
 Cbed_API Vec3 v3_sub(Vec3 a, Vec3 b){
-    Vec3 result = {
+    Vec3 result = v3(
         Vec_OP(x, -),
         Vec_OP(y, -),
-        Vec_OP(z, -),
-    };
+        Vec_OP(z, -)
+    );
     return result;
 }
 
 Cbed_API Vec3 v3_add(Vec3 a, Vec3 b){
-    Vec3 result = {
+    Vec3 result = v3(
         Vec_OP(x, +),
         Vec_OP(y, +),
-        Vec_OP(z, +),
-    };
+        Vec_OP(z, +)
+    );
     return result;
 }
 
 Cbed_API Vec3 v3_mul(Vec3 a, Vec3 b){
-    Vec3 result = {
+    Vec3 result = v3(
         Vec_OP(x, *),
         Vec_OP(y, *),
-        Vec_OP(z, *),
-    };
+        Vec_OP(z, *)
+    );
     return result;
 }
 
 Cbed_API Vec3 v3_muls(Vec3 a, float b){
-    Vec3 result = {
+    Vec3 result = v3(
         a.x * b,
         a.y * b,
-        a.z * b,
-    };
+        a.z * b
+    );
     return result;
 }
 
 Cbed_API Vec3 v3_div(Vec3 a, Vec3 b){
-    Vec3 result = {
+    Vec3 result = v3(
         Vec_OP(x, /),
         Vec_OP(y, /),
-        Vec_OP(z, /),
-    };
+        Vec_OP(z, /)
+    );
     return result;
 }
 
@@ -121,13 +114,13 @@ Cbed_API Vec2 v2_normalize(Vec2 v){
 Cbed_API Vec3 v3_normalize(Vec3 a){
     float mag = sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
 
-    Vec3 result = {0.0f, 0.0f, 0.0f};
+    Vec3 result = v3(0, 0, 0);
     if(mag > 0.00001f){ // TODO: Better epsilon?
-        result = (Vec3){
+        result = v3(
             a.x / mag,
             a.y / mag,
             a.z / mag
-        };
+        );
     }
     return result;
 }
@@ -163,11 +156,11 @@ Cbed_API float v3_dot(Vec3 a, Vec3 b){
 }
 
 Cbed_API Vec3 cross(Vec3 a, Vec3 b){
-    Vec3 result = {
+    Vec3 result = v3(
         a.y*b.z - a.z*b.y,
         a.z*b.x - a.x*b.z,
         a.x*b.y - a.y*b.x
-    };
+    );
     return result;
 }
 
@@ -199,13 +192,18 @@ Cbed_API bool circles_overlap(Vec2 a_center, f32 a_radius, Vec2 b_center, f32 b_
     return result;
 }
 
-Cbed_API float lerp(float start, float end, float t){
-    float result = (end * t) + (start * (1.0f - t));
+Cbed_API f32 mod(f32 a, f32 b){
+#ifdef OS_Linux
+    f32 result = __builtin_fmodf(a, b);
+    if(result < 0){
+        result += absf(b);
+    }
+#endif
     return result;
 }
 
-Cbed_API Vec4 v4(f32 x, f32 y, f32 z, f32 w){
-    Vec4 result = {{x, y, z, w}};
+Cbed_API float lerp(float start, float end, float t){
+    float result = (end * t) + (start * (1.0f - t));
     return result;
 }
 
@@ -215,6 +213,15 @@ Cbed_API Vec4 v4_lerp(Vec4 a, Vec4 b, float t){
         lerp(a.y, b.y, t),
         lerp(a.z, b.z, t),
         lerp(a.w, b.w, t),
+    }};
+    return result;
+}
+
+Cbed_API Vec3 v3_lerp(Vec3 a, Vec3 b, float t){
+    Vec3 result = {{
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.z, b.z, t),
     }};
     return result;
 }
@@ -473,7 +480,7 @@ Cbed_API Vec3 polar_to_world(Vec3 polar, Vec3 target_pos){
     float theta_sin = sin(theta);
     float theta_cos = cos(theta);
 
-    Vec3 dir_to_camera = (Vec3){theta_sin * phi_cos, theta_cos, theta_sin*phi_sin};
+    Vec3 dir_to_camera = v3(theta_sin * phi_cos, theta_cos, theta_sin*phi_sin);
     Vec3 world_pos = v3_add(target_pos, v3_muls(dir_to_camera, polar.z));
     return world_pos;
 }
