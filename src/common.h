@@ -79,6 +79,24 @@ typedef double   f64;
 #define Clear_Flags(bits, flags) ((bits) & ~(flags))
 
 //
+// Strings
+//
+
+typedef struct{
+    char*  text;
+    size_t size;
+} String;
+
+Cbed_API String str(const char* s);
+Cbed_API bool char_is_whitespace(char c);
+Cbed_API void str_advance(String *reader);
+Cbed_API String str_eat_line(String *reader);
+Cbed_API void str_skip_whitespace(String *reader);
+Cbed_API bool str_match(String a, String);
+Cbed_API char *str_find_last(String s, char c);
+Cbed_API bool  str_ends_with(String s, String end);
+
+//
 // Buffers
 //
 
@@ -102,29 +120,27 @@ Cbed_API void *buffer_write(Buffer *buffer, const void* data, size_t data_size);
 #define buffer_read_array(T, buffer, count) (T*)buffer_read(buffer, sizeof(T)*(count))
 Cbed_API void *buffer_read(Buffer *buffer, size_t bytes);
 
+// NOTE: buffer_begin_writer reserves all the remaining space in the source buffer and returns
+// it in a secondary buffer. Calling buffer_end_writer will return how much of this space has
+// been used since the initial call to buffer_begin_writer. This can be used to generate strings
+// or even write binary blobs. If generating strings, passing true for the null_terminate
+// argument will ensure the result is null terminated, even if the result must be truncated.
+//
+// Example:
+//
+//   Buffer writer = buffer_begin_writer(&buffer);
+//   buffer_put_string(str_lit("Hello, "));
+//   buffer_put_string(str_lit("World!"));
+//   String s = buffer_end_writer(&buffer, writer, true);
+//   printf("%s\n", s.text);
+Cbed_API Buffer buffer_begin_writer(Buffer *buffer);
+Cbed_API String buffer_end_writer(Buffer *buffer, Buffer writer, bool null_terminate);
+
 // NOTE: The buffer_put_text function truncates the result if no more roo exists in the buffer.
 // When concatonating strings, calling buffer_null_terminate will ensure the text is null
 // terminated, even if the string had been truncated.
 Cbed_API char *buffer_put_text(Buffer *buffer, const char *text, size_t text_len);
 Cbed_API char *buffer_null_terminate(Buffer* buffer);
-
-//
-// Strings
-//
-
-typedef struct{
-    char*  text;
-    size_t size;
-} String;
-
-Cbed_API String str(const char* s);
-Cbed_API bool char_is_whitespace(char c);
-Cbed_API void str_advance(String *reader);
-Cbed_API String str_eat_line(String *reader);
-Cbed_API void str_skip_whitespace(String *reader);
-Cbed_API bool str_match(String a, String);
-Cbed_API char *str_find_last(String s, char c);
-Cbed_API bool  str_ends_with(String s, String end);
 
 // Conversion functions
 Cbed_API bool str_to_f32(const char *s, size_t s_len, f32* f);

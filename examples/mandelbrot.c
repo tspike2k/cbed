@@ -305,6 +305,11 @@ f32 map_into_range(f32 value, f32 max, f32 range_min, f32 range_max){
     return result;
 }
 
+static u32 color_from_v3(Vec3 v){
+    u32 result = color_from_v4(v4(v.r, v.g, v.b, 1));
+    return result;
+}
+
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
@@ -321,6 +326,7 @@ int main(){
     }
 
     f32 scale = 1.0f;
+    Vec2 offset = v2(3.5, 3.0);
 
     while(running){
         Buffer memory_restore = memory;
@@ -347,6 +353,53 @@ int main(){
 
         Display_Info display = display_get_info();
 
+#if 1
+        scale -= 0.01f;
+        offset.x += 1.0f;
+        offset.y -= 1.0f;
+
+        u32 max_iterations = Array_Len(g_viridis_colormap);
+        f32 log2 = log(2);
+        for_count(int, py, pixels.height){
+            for_count(int, px, pixels.width){
+                f32 x0 = map_into_range(px - offset.x, pixels.width,  -2.0f*scale, 0.47f*scale);
+                f32 y0 = map_into_range(py - offset.y, pixels.height, -1.12f*scale, 1.12f*scale);
+
+                f32 x = 0.0f;
+                f32 y = 0.0f;
+                u32 i = 0;
+                for(; i < max_iterations; i++){
+                    f32 x2 = x*x;
+                    f32 y2 = y*y;
+                    if(x2 + y2 <= (1 << 16)){
+                        f32 y_next = 2.0f*x*y + y0;
+                        f32 x_next = x2 - y2 + x0;
+                        y = y_next;
+                        x = x_next;
+                    }
+                    else{
+                        break;
+                    }
+                }
+
+                f32 iteration = i;
+                if(i < max_iterations){
+                    f32 log_zn = log(x*x + y*y) / 2.0f;
+                    f32 nu = log(log_zn / log2) / log2;
+                    iteration += 1.0f - nu;
+                }
+
+                int i0 = (int)floor(iteration);
+                int i1 = (int)floor(iteration)+1;
+                Vec3 color_a = g_viridis_colormap[i0 % Array_Len(g_viridis_colormap)];
+                Vec3 color_b = g_viridis_colormap[i1 % Array_Len(g_viridis_colormap)];
+
+                pixels.data[px + py * pixels.width] = color_from_v3(v3_lerp(color_a, color_b, mod(iteration, 1)));
+            }
+        }
+
+
+#else
         u32 max_iterations = 100;
         u32 *iterations = buffer_push_array(u32, &memory, total_pixels);
 
@@ -400,6 +453,7 @@ int main(){
         for_count(u32, i, total_pixels){
             pixels.data[i] = get_viridis_color(hues[i]);
         }
+#endif
 
         display_blit_to_backbuffer(pixels.data, pixels.width, pixels.height, 0, 0);
 

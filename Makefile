@@ -38,6 +38,9 @@ pad: display
 font_builder:
 	$(CC) $(FLAGS) -I/usr/include/freetype2 -o ./bin/font_builder examples/font_builder.c -lfreetype -lm
 
+json:
+	$(CC) $(FLAGS) -o ./bin/json examples/parse_json.c
+
 mandelbrot: display
 	$(CC) $(FLAGS) -o ./bin/mandelbrot examples/mandelbrot.c ./bin/display.o $(LIBS)
 

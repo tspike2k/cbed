@@ -172,6 +172,37 @@ Cbed_API void *buffer_read(Buffer *buffer, size_t bytes){
     return result;
 }
 
+Cbed_API Buffer buffer_begin_writer(Buffer *buffer){
+    Buffer result = {&buffer->data[buffer->used], buffer->size - buffer->used};
+    buffer->used = buffer->size;
+    return result;
+}
+
+Cbed_API String buffer_end_writer(Buffer *buffer, Buffer writer, bool null_terminate){
+    assert(buffer->size);
+    assert(writer.size);
+
+    buffer->used = &writer.data[writer.used] - buffer->data;
+
+    String result = {(char*)writer.data, writer.used};
+    if(null_terminate){
+        if(buffer->used < buffer->size){
+            buffer->data[buffer->used] = 0;
+            buffer->used++;
+        }
+        else{
+            // We have no more room left, so truncate the result to null-terminate.
+            buffer->data[buffer->used-1] = 0;
+            result.size--;
+        }
+    }
+    else{
+        assert(buffer->used < buffer->size);
+    }
+
+    return result;
+}
+
 Cbed_API char *buffer_put_text(Buffer *buffer, const char* text, size_t text_len){
     char *result = (char *)&buffer->data[buffer->used];
     if(text_len){
