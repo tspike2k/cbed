@@ -8,6 +8,7 @@
 #define CBED_IMG_H
 
 #include "common.h"
+#include "math.h"
 
 // Internally, colors are in the 32-bit RGBA LE format. This means hex literals for colors
 // have the following format: 0xAABBGGRR

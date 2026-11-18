@@ -4,9 +4,7 @@
 FLAGS := -g -Wall -Wno-unused-function -Wno-unused-variable -Isrc -L./bin -fvisibility=hidden
 LIBS := -lX11 -lXi -lGL -lm
 
-EXAMPLES := rect box tga cat walk_files fmt pad font_builder hotload_code
-
-all: display $(EXAMPLES)
+all: display rect box tga cat walk_files fmt pad font_builder hotload_code
 
 ./bin/display.o:
 	display

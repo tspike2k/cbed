@@ -6,7 +6,6 @@
 
 #include "common.c"
 #include "display.h"
-#include "opengl.c"
 #include "math.c"
 #include "font.c"
 #include "draw.c"

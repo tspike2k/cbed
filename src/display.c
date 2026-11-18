@@ -870,11 +870,6 @@ static bool display__init_sw_window(Xlib_Window *window){
             display__create_backbuffer(window);
 
             fmt_msg("Software Renderer: {0}, {1}\n", fmt_i(window->width), fmt_i(window->height));
-            // TODO: Implement software rendering.
-            assert(0);
-            /*display__sw.res_x = res_x;*/
-            /*display__sw.res_y = res_y;*/
-
             result = true;
         }
     }

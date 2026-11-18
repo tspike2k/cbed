@@ -17,7 +17,6 @@ result quickly take effect.
 #include "common.c"
 #include "os.c"
 #include "display.h"
-#include "opengl.c"
 #include "math.c"
 #include "files.c"
 #include "font.c"
