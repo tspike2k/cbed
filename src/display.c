@@ -390,7 +390,7 @@ static bool display__process_event(XEvent *xevt, Event *evt){
             s->window.width  = xevt->xconfigure.width;
             s->window.height = xevt->xconfigure.height;
 
-            if(s->window.flags & Display_Flag_HW_Rendering){
+            if(s->window.flags & Display_Flag_Software_Render){
                 display__create_backbuffer(&s->window);
             }
         } break;
@@ -758,7 +758,7 @@ Cbed_API void display_blit_to_backbuffer(u32 *pixels, u32 width, u32 height, int
 Cbed_API void display_flip_backbuffer(){
     Xlib *s = &display__xlib;
     Xlib_Window *window = &s->window;
-    if(window->flags & Display_Flag_HW_Rendering){
+    if(!(window->flags & Display_Flag_Software_Render)){
 #ifdef Display_OpenGL
         glXSwapBuffers(s->display, window->handle);
 #endif
@@ -922,11 +922,11 @@ Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t h
     window->title  = window_title;
     window->width  = width;
     window->height = height;
-    window->flags  = window_flags;
+    window->flags = window_flags;
 
     // TODO: Using hardware rendering should be the default assumption. The user should have
     // to opt-in to software rendering.
-    bool use_sw_rendering = !(window_flags & Display_Flag_HW_Rendering);
+    bool use_sw_rendering = window_flags & Display_Flag_Software_Render;
     bool debug_mode = true; // TODO: Make this a user param? Maybe a display flag?
 
 #ifdef Display_OpenGL
@@ -957,9 +957,8 @@ Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t h
 #endif
 
     if(use_sw_rendering){
-        window_flags &= ~Display_Flag_HW_Rendering; // TODO: Does this actually clear the flag? Get the syntax right!
+        window->flags |= Display_Flag_Software_Render;
         if(!display__init_sw_window(window)){
-
             // TODO: Report an error if we can't get software rendering to work?
             return false;
         }
@@ -1013,7 +1012,7 @@ Cbed_API void display_end(){
     }
 
 #ifdef Display_OpenGL
-    if(s->window.flags & Display_Flag_HW_Rendering){
+    if(!(s->window.flags & Display_Flag_Software_Render)){
         XFreeColormap(s->display, s->colormap);
     }
 #endif

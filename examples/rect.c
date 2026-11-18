@@ -26,9 +26,7 @@ static void print_font_info(void *memory){
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
-    u32 display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Rect", 1024, 768, display_flags)
-        && draw_begin(&memory);
+    bool running = display_begin("Rect", 1024, 768, 0) && draw_begin(&memory);
 
     const char *font_file_name = "./bin/font.fnt";
     String font_memory = file_read_into_memory(font_file_name, &memory);

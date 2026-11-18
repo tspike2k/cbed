@@ -65,9 +65,7 @@ Hotload_Result compile_and_load(File_Lib *app_lib){
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
-    u32 display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Hotload", 1024, 768, display_flags)
-        && draw_begin(&memory);
+    bool running = display_begin("Hotload", 1024, 768, 0) && draw_begin(&memory);
 
     File_Watcher file_watcher;
     file_watcher_begin(&file_watcher, buffer_push_bytes(&memory, 4096), 4096);

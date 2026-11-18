@@ -28,8 +28,7 @@ u8 g_memory[8*1024*1024];
 #define Window_H 512
 
 int main(void){
-    u32 display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Vulkan Test", 1024, 768, display_flags);
+    bool running = display_begin("Vulkan Test", 1024, 768, 0);
 
     while(running){
         Event event;

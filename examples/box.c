@@ -243,18 +243,9 @@ static void set_world_projection(Camera* camera, float width, float height, floa
 int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
-    u32 display_flags = Display_Flag_HW_Rendering;
-    bool running = display_begin("Box", 1024, 768, display_flags)
-        && draw_begin(&memory);
+    bool running = display_begin("Box", 1024, 768, 0) && draw_begin(&memory);
 
     Vec3 camera_polar = v3(90, -45, 1); // TODO: Make these in radian eventually
-
-    {
-        auto m = make_lookat_matrix(v3(0, 0, -20), v3(0, 20, 0), v3(0, 1, 0));
-        int i =42;
-    }
-
-    float t = 0;
 
     f32 dt = 2.0f; // TODO: Actually do frame timing.
     while(running){
@@ -284,8 +275,6 @@ int main(){
         Display_Info display = display_get_info();
         Vec3 screen_center = v3_muls(v3(display.window_width, display.window_height, 0), 0.5f);
         Vec3 cube_pos = v3_add(screen_center, v3(0, 0, 0));
-
-        t += dt;
 
         Camera camera = {0};
         float z_near = -1000.0f;

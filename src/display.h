@@ -10,7 +10,7 @@
 #include "common.h"
 
 enum{
-    Display_Flag_HW_Rendering = (1 << 0),
+    Display_Flag_Software_Render = (1 << 0),
 };
 
 enum{

@@ -727,7 +727,7 @@ Cbed_API bool draw_begin(Buffer *memory){
     Draw_State *s = &draw__state;
 
     Display_Info info = display_get_info();
-    s->common.hw_rendering = info.window_flags & Display_Flag_HW_Rendering;
+    s->common.hw_rendering = !(info.window_flags & Display_Flag_Software_Render);
     s->common.memory = memory;
 
     {
