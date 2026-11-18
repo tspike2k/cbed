@@ -148,7 +148,7 @@ Cbed_API Vec3 camera_unproject(Camera* camera, Vec2 screen_p, float screen_w, fl
     camera_p = v4(camera_p.x / camera_p.w, camera_p.y / camera_p.w, camera_p.z / camera_p.w, camera_p.w);
     Vec4 world_p = mat4_mul_v4(camera->view.inv, camera_p);
     world_p = v4(world_p.x / world_p.w, world_p.y / world_p.w, world_p.z / world_p.w, world_p.w);
-    Vec3 result = (Vec3){world_p.x, world_p.y, world_p.z};
+    Vec3 result = v3(world_p.x, world_p.y, world_p.z);
 
     return result;
 }
@@ -220,11 +220,11 @@ Cbed_API Mat4 invert_view_matrix(Mat4 view){
     }};
 
     // Negate the translation portion of the view to invert it.
-    Vec3 p = {
+    Vec3 p = v3(
         -view.m[0][3],
         -view.m[1][3],
         -view.m[2][3]
-    };
+    );
     Mat4 result = mat4_mul(rot, mat4_translate(p));
     return result;
 }
@@ -293,10 +293,10 @@ static void draw__set_quad(Draw_Vertex* v, Rect bounds, u32 color, Rect uvs){
     Vec2 r_min = rect_min(bounds);
     Vec2 r_max = rect_max(bounds);
 
-    Vec3 p0 = {r_max.x, r_max.y}; // Top-right
-    Vec3 p1 = {r_min.x, r_max.y}; // Top-left
-    Vec3 p2 = {r_min.x, r_min.y}; // Bottom-left
-    Vec3 p3 = {r_max.x, r_min.y}; // Bottom-right
+    Vec3 p0 = v3(r_max.x, r_max.y, 0); // Top-right
+    Vec3 p1 = v3(r_min.x, r_max.y, 0); // Top-left
+    Vec3 p2 = v3(r_min.x, r_min.y, 0); // Bottom-left
+    Vec3 p3 = v3(r_max.x, r_min.y, 0); // Bottom-right
 
     draw__set_quad_points(v, p0, p1, p2, p3, color, uvs);
 }
@@ -432,7 +432,7 @@ Cbed_API Vec2 font_align_text(Font *font, Font_Align font_align, const char *tex
 }
 
 static Vec3 v2_to_v3(Vec2 p){ // TODO: Why is this here? Shouldn't this be in math.c?
-    Vec3 result = {p.x, p.y, 0};
+    Vec3 result = v3(p.x, p.y, 0);
     return result;
 }
 
@@ -740,8 +740,8 @@ Cbed_API bool draw_begin(Buffer *memory){
         camera->proj = orthographic_projection(window_bounds, -100, 100);
         camera->view.mat = Mat4_Identity;
         camera->view.inv = invert_view_matrix(Mat4_Identity);
-        camera->center = (Vec3){0, 0, 0}; // TODO: Is this the correct center?
-        camera->facing = (Vec3){0, 0, 1}; // TODO: Should z be -1?
+        camera->center = v3(0, 0, 0); // TODO: Is this the correct center?
+        camera->facing = v3(0, 0, 1); // TODO: Should z be -1?
     }
 
     bool success = true;
@@ -939,11 +939,11 @@ Cbed_API void draw_frame_end(){
                     for(u32 i = 1; i < points; i++){
                         Draw_Vertex *v = &vertices[i];
 
-                        Vec3 offset = {
+                        Vec3 offset = v3(
                             cos((segment_size*(f32)i))*cmd->radius,
                             sin((segment_size*(f32)i))*cmd->radius,
                             0
-                        };
+                        );
                         v->pos = v3_add(center, offset);
                         v->color = cmd->color;
                     }

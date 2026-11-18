@@ -13,15 +13,51 @@
         sudo pacman -S vulkan-validation-layers
 */
 
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/XInput2.h>
+#include <stdlib.h> // free
 #include "common.c"
-#include "vulkan.c"
-/*#include "display.h"*/
+#define Display_Vulkan
+#include "display.c"
+/*#include "vulkan.c"*/
 
 u8 g_memory[8*1024*1024];
 
 #define Window_W 512
 #define Window_H 512
 
+int main(void){
+    u32 display_flags = Display_Flag_HW_Rendering;
+    bool running = display_begin("Vulkan Test", 1024, 768, display_flags);
+
+    while(running){
+        Event event;
+        while(display_next_event(&event)){
+            switch(event.type){
+                default: break;
+
+                case Event_Type_Window_Close:{
+                    running = false;
+                } break;
+
+                case Event_Type_Key:{
+                    Event_Key *key = &event.key;
+                    running = key->id != Key_ID_Escape;
+                } break;
+            }
+        }
+
+        //display_flip_backbuffer();
+        display_end_frame();
+    }
+    display_end();
+    return 0;
+}
+
+
+
+#if 0
 int main(void){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
@@ -50,3 +86,4 @@ int main(void){
 
     return 0;
 }
+#endif

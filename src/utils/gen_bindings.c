@@ -54,15 +54,6 @@ static Tokenizer make_tokenizer(String source){
     return result;
 }
 
-static Tokenizer tokenizer_save(Tokenizer *s){
-    Tokenizer result = *s;
-    return result;
-}
-
-static void tokenizer_restore(Tokenizer *s, Tokenizer restore){
-    *s = restore;
-}
-
 static bool char_is_alpha(char c){
     bool result = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     return result;
@@ -85,12 +76,9 @@ static char next_char(Tokenizer *s){
     return result;
 }
 
-static Token_Type check_keyword(u32 start_index, String keyword, Token_Type keyword_token_type, String s){
-    assert(keyword.size > start_index);
-
+static Token_Type check_keyword(String s, String keyword, Token_Type keyword_token_type){
     Token_Type result = Token_Type_Identifier;
-    if(s.size == keyword.size
-    && memcmp(&s.text[start_index], &keyword.text[start_index], s.size - start_index) == 0){
+    if(s.size == keyword.size && memcmp(s.text, keyword.text, s.size) == 0){
         result = keyword_token_type;
     }
 
@@ -100,17 +88,13 @@ static Token_Type check_keyword(u32 start_index, String keyword, Token_Type keyw
 static Token_Type parse_keyword_or_identifier(String s){
     assert(s.size);
 
-    if(str_match(s, str_lit("Cbed_API"))){
-        int x  = 42;
-    }
-
     Token_Type result;
     switch(s.text[0]){
         default:
             result = Token_Type_Identifier; break;
 
-        case 'C': result = check_keyword(0, str_lit("Cbed_API"), Token_Type_API, s); break;
-        case 'v': result = check_keyword(0, str_lit("void"), Token_Type_Void, s); break;
+        case 'C': result = check_keyword(s, str_lit("Cbed_API"), Token_Type_API); break;
+        case 'v': result = check_keyword(s, str_lit("void"),     Token_Type_Void); break;
     }
 
     return result;
@@ -248,9 +232,9 @@ static Token next_token(Tokenizer *s){
 }
 
 static Token peek_token(Tokenizer *s){
-    Tokenizer place = tokenizer_save(s);
+    Tokenizer restore = *s;
     Token result = next_token(s);
-    tokenizer_restore(s, place);
+    *s = restore;
     return result;
 }
 
@@ -275,6 +259,7 @@ typedef enum{
     Parse_Type_Comment,
     Parse_Type_Include,
     Parse_Type_Function,
+    Parse_Type_Define,
 } Parse_Type;
 
 typedef struct{
@@ -304,6 +289,13 @@ typedef struct{
     String     return_type;
     Var_Decl   parameters;
 } Parse_Function;
+
+typedef struct{
+    Parse_Type type;
+    String name;
+    String params;
+    String value;
+} Parse_Define;
 
 typedef struct Parse_Node Parse_Node;
 
@@ -454,7 +446,7 @@ int main(){
     Buffer memory = {&g_memory[0], Array_Len(g_memory)};
 
     /*String source = file_read_into_memory("./src/atlas.h", &memory);*/
-    String source = file_read_into_memory("./src/common.h", &memory);
+    String source = file_read_into_memory("./test.h", &memory);
     Parse_Nodes parse_nodes = parse_file(source, &memory);
     Parse_Node *prev_node = NULL;
     for(Parse_Node *node = parse_nodes.first; node; node = node->next){

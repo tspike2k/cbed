@@ -13,12 +13,31 @@
 
     TODO: *THIS* is probably the correct tutorial for starting out:
     https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/00_Base_code.html
+
+    But this one also looks quite good:
+    https://www.howtovulkan.com/#intro
+
+    Videos that may be worth watching:
+    https://www.youtube.com/watch?v=DC9FBRQKNck
+    https://www.youtube.com/watch?v=G5EECLl0CSE
+    https://www.youtube.com/watch?v=onQyefRdiMA
 */
 
 #include "vulkan.h"
 #include <vulkan/vulkan.h>
 
-#define Vulkan__Target_API_Version VK_API_VERSION_1_4
+#define Vulkan__Target_API_Version VK_API_VERSION_1_3
+
+#ifdef OS_Linux
+#include <vulkan/vulkan_xlib.h>
+
+    // Target instance extensions
+    const char* vulkan__instance_extensions[] ={
+        "VK_KHR_surface",
+        VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+    };
+#endif
 
 typedef struct{
     VkInstance     instance;
@@ -30,8 +49,6 @@ typedef struct{
 
     // Client data.
     const char *app_name;
-    const char **extensions;
-    u32         extensions_count;
     bool        debug;
     u32         window_w;
     u32         window_h;
@@ -80,13 +97,26 @@ static bool vulkan__init(void){
         .pfnUserCallback = vulkan__debug_msg_callback,
     };
 
+    const char **instance_extensions = vulkan__instance_extensions;
+    u32 instance_extensions_count = Array_Len(vulkan__instance_extensions);
+    if(!s->debug){
+        // If we're not in debug mode, we should trim the ending debug extension.
+        // Thanks to string spooling, a simple pointer comparison should work to
+        // tell if these strings match, for a sanity check.
+        //
+        // TODO: To make these more reasonable, should enabling debugging be a compile-time
+        // option?
+        assert(vulkan__instance_extensions[instance_extensions_count-1] == (const char *)VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        instance_extensions_count--;
+    }
+
     // TODO: Should we use vkEnumerateInstanceExtensionProperties to make sure the extensions
     // are supported before we try to call vkCreateInstance? It seems rather uneeded.
     VkInstanceCreateInfo instance_info = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo        = &app_info,
-        .enabledExtensionCount   = s->extensions_count,
-        .ppEnabledExtensionNames = s->extensions,
+        .enabledExtensionCount   = instance_extensions_count,
+        .ppEnabledExtensionNames = instance_extensions,
     };
 
     if(s->debug){
@@ -215,12 +245,8 @@ static bool vulkan__init(void){
 #endif
 
     // Now request the device feature we need.
-    VkPhysicalDeviceVulkan14Features features_1_4 = {
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
-	};
 	VkPhysicalDeviceVulkan13Features features_1_3 = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-		.pNext = &features_1_4,
 		.synchronization2 = VK_TRUE, // Better synchronization features
 		.dynamicRendering = VK_TRUE, // Removed the need for the old render pass use
 	};
@@ -395,12 +421,6 @@ Cbed_API void vulkan_destroy(){
 #include <X11/Xlib.h>
 #include <vulkan/vulkan_xlib.h>
 
-const char* vulkan__extensions[] ={
-    "VK_KHR_surface",
-    VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-    VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-};
-
 static Display *vulkan__display;
 static Window   vulkan__window;
 
@@ -430,17 +450,8 @@ Cbed_API bool vulkan_init(Display *display, Window window, u32 window_w, u32 win
 
     s->app_name         = app_name;
     s->debug            = debugging;
-    s->extensions       = vulkan__extensions;
-    s->extensions_count = Array_Len(vulkan__extensions);
     s->window_w         = window_w;
     s->window_h         = window_h;
-    if(!debugging){
-        // If we're not in debug mode, we should trim the ending debug extension.
-        // Thanks to string spooling, a simple pointer comparison should work to
-        // tell if these strings match, for a sanity check.
-        assert(s->extensions[s->extensions_count-1] == VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        s->extensions_count--;
-    }
 
     if(!vulkan__init()){
         // TODO: Report error?

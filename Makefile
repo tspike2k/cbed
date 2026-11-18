@@ -12,7 +12,7 @@ all: display $(EXAMPLES)
 	display
 
 display:
-	$(CC) -c $(FLAGS) ./src/display.c -o ./bin/display.o $(LIBS)
+	$(CC) -c $(FLAGS) -DDisplay_OpenGL ./src/display.c -o ./bin/display.o $(LIBS)
 
 rect: display
 	$(CC) $(FLAGS) -o ./bin/rect examples/rect.c ./bin/display.o $(LIBS)
@@ -44,6 +44,9 @@ json:
 mandelbrot: display
 	$(CC) $(FLAGS) -o ./bin/mandelbrot examples/mandelbrot.c ./bin/display.o $(LIBS)
 
+d_test:
+	$(CC) -c $(FLAGS) -DDisplay_OpenGL ./src/display.c ./src/common.c -lX11 -lXi -lGL
+	ldc -g -of=./bin/d_test examples/d_test.d ./display.o ./common.o -L=-lX11 -L=-lXi -L=-lGL
 
 #NOTE: Experimental
 ui: display
@@ -51,8 +54,11 @@ ui: display
 
 #NOTE: Experimental
 vulkan_test:
-	$(CC) -c $(FLAGS) -DDisplay_Use_Vulkan ./src/display.c -o ./bin/display.o $(LIBS)
-	$(CC) $(FLAGS) -o ./bin/vulkan_test examples/vulkan_test.c ./bin/display.o -lX11 -lXi -lm -lvulkan
+	$(CC) $(FLAGS) -o ./bin/vulkan_test examples/vulkan_test.c -lX11 -lXi -lm -lvulkan
+
+# This would use the Vulkan display backend.
+#$(CC) -c $(FLAGS) -DDisplay_Vulkan ./src/display.c -o ./bin/display_vk.o $(LIBS)
+#$(CC) $(FLAGS) -o ./bin/vulkan_test examples/vulkan_test.c ./bin/display_vk.o -lX11 -lXi -lm -lvulkan
 
 # NOTE: The code hotloading example is compiled differently than the others because it has
 # unusual requirements. In typical scenarios a library provides global symbols and the base

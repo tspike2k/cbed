@@ -15,7 +15,7 @@
 
 #ifdef OS_Linux
 
-#define pow   __builtin_powif
+#define pow   __builtin_powf
 #define ceil  __builtin_ceilf
 #define floor __builtin_floorf
 #define sqrt  __builtin_sqrt
@@ -24,6 +24,7 @@
 #define tan   __builtin_tanf
 #define absf  __builtin_fabsf
 #define log   __builtin_log
+#define modf  __builtin_fmodf
 
 #endif
 
@@ -76,6 +77,7 @@ Cbed_API float v2_dot(Vec2 a, Vec2 b);
 Cbed_API float v3_dot(Vec3 a, Vec3 b);
 Cbed_API Vec3  cross(Vec3 a, Vec3 b);
 
+Cbed_API float clampf(float a, float min, float max);
 Cbed_API float squared(float n);
 Cbed_API float v2_dist_sq(Vec2 a, Vec2 b);
 Cbed_API float v3_dist_sq(Vec3 a, Vec3 b);

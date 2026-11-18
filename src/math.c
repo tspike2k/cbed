@@ -6,10 +6,6 @@
 
 #include "math.h"
 
-void clampf(f32 *value, f32 min_val, f32 max_val){
-    *value = *value < min_val ? min_val : (*value > max_val ? max_val : *value);
-}
-
 #define Vec_OP(c, op) (a.c op b.c)
 
 Cbed_API Vec2 v2_sub(Vec2 a, Vec2 b){
@@ -167,6 +163,11 @@ Cbed_API Vec3 cross(Vec3 a, Vec3 b){
 Cbed_API float v2_distance_between(Vec2 a, Vec2 b){
     Vec2 diff = v2_sub(a, b);
     float result = sqrt(diff.x * diff.x + diff.y * diff.y);
+    return result;
+}
+
+Cbed_API f32 clampf(f32 value, f32 min_val, f32 max_val){
+    f32 result = value < min_val ? min_val : (value > max_val ? max_val : value);
     return result;
 }
 
