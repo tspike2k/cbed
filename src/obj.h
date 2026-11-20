@@ -31,11 +31,11 @@ typedef struct{
     Obj_Vertex vertex[4];
 } Obj_Polygon;
 
-struct Obj_Data{
+typedef struct{
     // TODO: Should faces be seperated by groups/material/etc?
     size_t faces_count;
     u8 internal[128];
-};
+} Obj_Data;
 
 Cbed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest, Buffer* scratch);
 Cbed_API Obj_Polygon obj_polygon_from_face(Obj_Data *obj, size_t face_index);

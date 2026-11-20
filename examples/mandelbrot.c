@@ -318,7 +318,7 @@ int main(){
     u32 total_pixels = pixels.width*pixels.height;
     pixels.data = buffer_push_array(u32, &memory, total_pixels);
 
-    bool running = display_begin("Mandelbrot", pixels.width, pixels.height, 0);
+    bool running = display_begin("Mandelbrot", pixels.width, pixels.height, Display_Flag_Software_Render);
 
     for_count(u32, i, total_pixels){
         pixels.data[i] = 0xff0000ff;

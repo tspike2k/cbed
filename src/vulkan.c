@@ -5,19 +5,16 @@
 //------------------------------------------------------------------------------
 
 /*
-    NOTE: This is based off the following resources:
+NOTE: This code is was originally based on the YouTube video "Learn Modern Vulkan in 2 Hours
+(Dynamic Rendering, No Render Passes!)" by constref (https://www.youtube.com/watch?v=DC9FBRQKNck).
 
-    "Learn Modern Vulkan in 2 Hours (Dynamic Rendering, No Render Passes!)" by constref (https://www.youtube.com/watch?v=DC9FBRQKNck)
-    https://www.howtovulkan.com/
-    https://vulkan-tutorial.com/
+Moving forwards, code will mostly be based on the following resources:
+https://www.howtovulkan.com/#intro
+https://vulkan-tutorial.com/
 
-    TODO: *THIS* is probably the correct tutorial for starting out:
+Additional resources that might be worth using in the future:
     https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/00_Base_code.html
 
-    But this one also looks quite good:
-    https://www.howtovulkan.com/#intro
-
-    Videos that may be worth watching:
     https://www.youtube.com/watch?v=DC9FBRQKNck
     https://www.youtube.com/watch?v=G5EECLl0CSE
     https://www.youtube.com/watch?v=onQyefRdiMA
@@ -40,16 +37,31 @@
 #endif
 
 typedef struct{
+    VkImage        image;
+    VkDeviceMemory memory;
+    VkImageView    view;
+} Vulkan_Image;
+
+typedef struct{
     VkInstance     instance;
     VkDevice       device;
     VkSurfaceKHR   surface;
     VkQueue        device_queue;
     u32            queue_family_index;
     VkSwapchainKHR swapchain;
+    u32            swapchain_w;
+    u32            swapchain_h;
+
+    VkFormat      depth_format;
+    Vulkan_Image  depth_buffer;
+
+    VkPhysicalDeviceMemoryProperties memory_properties;
 
     // Client data.
     const char *app_name;
     bool        debug;
+
+    // TODO: Width and height should really be stored in client data, should it?
     u32         window_w;
     u32         window_h;
 } Vulkan_State;
@@ -57,6 +69,28 @@ typedef struct{
 static Vulkan_State vulkan__state;
 
 static bool vulkan__init_surface();
+
+static VkImageCreateInfo vulkan__get_depth_create_info(){
+    Vulkan_State *s = &vulkan__state;
+
+    VkExtent3D extent = {.width = s->swapchain_w, .height = s->swapchain_h, .depth = 1};
+
+    VkImageCreateInfo result = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = s->depth_format,
+        .extent = extent,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        // .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    return result;
+}
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan__debug_msg_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -68,6 +102,82 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan__debug_msg_callback(
     fmt_msg_puts("\n");
 
     return VK_FALSE;
+}
+
+static u32 vulkan__find_memory_type_index(u32 memory_type_bits, VkMemoryPropertyFlags target_properties){
+    Vulkan_State *s = &vulkan__state;
+
+    // TODO: Should we have a better way of reporting an error?
+    u32 result = UINT32_MAX;
+
+    // Loop through each memory index and check to see if the bit flags indicate the memory
+    // index is supported. Also check to see if the given index supports the memory properties
+    // we require.
+    for_count(u32, i, s->memory_properties.memoryTypeCount){
+        if((memory_type_bits & (1 << i))
+        && s->memory_properties.memoryTypes[i].propertyFlags & target_properties){
+            result = i;
+            break;
+        }
+    }
+
+    return result;
+}
+
+static bool vulkan__create_image(VkImageCreateInfo *c_info, Vulkan_Image* img){
+    Vulkan_State *s = &vulkan__state;
+
+    bool result = false;
+
+    // TODO: Are these the only properties you'll need for images? It seems like it.
+    VkMemoryPropertyFlags memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    if(vkCreateImage(s->device, c_info, NULL, &img->image) == VK_SUCCESS){
+        VkMemoryRequirements requirments;
+        vkGetImageMemoryRequirements(s->device, img->image, &requirments);
+
+        VkMemoryAllocateInfo alloc_info = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize = requirments.size,
+            .memoryTypeIndex = vulkan__find_memory_type_index(requirments.memoryTypeBits, memory_properties),
+        };
+
+        if(vkAllocateMemory(s->device, &alloc_info, NULL, &img->memory) == VK_SUCCESS){
+            vkBindImageMemory(s->device, img->image, img->memory, 0); // TODO: Can this fail?
+
+            // NOTE: subresourceRange refers to the aspects of the image we want to access.
+            // This could be color, depth, or stencil data.
+
+            u32 aspect_mask = 0;
+            if(c_info->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT){
+                aspect_mask |= VK_IMAGE_ASPECT_DEPTH_BIT;
+            }
+
+            // TODO: Do all images really need a view? Maybe not.
+            VkImageViewCreateInfo view_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = img->image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = c_info->format,
+                .subresourceRange = { .aspectMask = aspect_mask, .levelCount = 1, .layerCount = 1 }
+            };
+
+            if(vkCreateImageView(s->device, &view_info, NULL, &img->view) == VK_SUCCESS){
+                result = true;
+            }
+            else{
+                fmt_msg_puts("ERROR: Unable to create view for Vulkan image.\n");
+            }
+        }
+        else{
+            fmt_msg_puts("ERROR: Unable to allocate memory for Vulkan image.\n");
+        }
+    }
+    else{
+        fmt_msg_puts("ERROR: Unable to create Vulkan image.\n");
+    }
+
+    return result;
 }
 
 static bool vulkan__init(void){
@@ -131,7 +241,7 @@ static bool vulkan__init(void){
     }
 
     // NOTE: According to the official "Khronos Vulkan Tutorial", the surface must be created
-    // right after creating the Vulkan instance. This is because it can affect list physical
+    // right after creating the Vulkan instance. This is because it can affect the physical
     // device list. See here for more information:
     // https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/01_Presentation/00_Window_surface.html
     if(!vulkan__init_surface()){
@@ -174,6 +284,8 @@ static bool vulkan__init(void){
         fmt_msg_puts("ERROR: Unable to get physical Vulkan device.\n");
         return false;
     }
+
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &s->memory_properties);
 
     //
     // Get the graphics queue. This is used to submit work from the CPU to the GPU. // TODO: Is this accurate?
@@ -306,8 +418,8 @@ static bool vulkan__init(void){
     if(swapchain_extent.width == 0xFFFFFFFF){
         // NOTE: This is an odd Wayland design decision. If the surface capability extents are
         // 0xFFFFFFFF, then the swapchain needs its own extents set to the size of the window.
-        // As a window manager, you think Wayland would know the window extents and pass that to
-        // us, but I guess it needs our help here.
+        // As a window manager, you'd think Wayland would know the window extents and pass that
+        // to us, but I guess it needs our help here.
         swapchain_extent = (VkExtent2D){s->window_w, s->window_h};
     }
 
@@ -341,6 +453,9 @@ static bool vulkan__init(void){
         .presentMode = present_mode
     };
 
+    s->swapchain_w = swapchain_extent.width;
+    s->swapchain_h = swapchain_extent.height;
+
     if(vkCreateSwapchainKHR(s->device, &swapchain_creat_info, NULL, &s->swapchain) != VK_SUCCESS){
         // TODO: Give some ideas as to what sort of formats we were questing? Would that help
         // a user?
@@ -349,44 +464,41 @@ static bool vulkan__init(void){
     }
 
     // TODO: Do we need to store the images? Why?
-    u32 image_count= 0;
+    /*u32 image_count= 0;*/
     /*chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr));*/
     /*swapchainImages.resize(imageCount);*/
     /*chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data()));*/
     /*swapchainImageViews.resize(imageCount);*/
 
-    // These formats are supposed to be supported by all Vulkan devices:
+    //
+    // Create depth attachment for the swapchain
+    //
+
+    // One of these two depth formats are supposed to be supported by all Vulkan devices:
     // https://www.howtovulkan.com/#swapchain
-    VkFormat depth_format = VK_FORMAT_UNDEFINED;
     VkFormat target_depth_formats[] = {VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT};
+    s->depth_format = VK_FORMAT_UNDEFINED;
     for_count(u32, i, Array_Len(target_depth_formats)){
         VkFormat target_format = target_depth_formats[i];
 
         VkFormatProperties2 props = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
         vkGetPhysicalDeviceFormatProperties2(physical_device, target_format, &props);
         if(props.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT){
-            depth_format = target_format;
+            s->depth_format = target_format;
             break;
         }
     }
 
-    if(depth_format == VK_FORMAT_UNDEFINED){
+    if(s->depth_format == VK_FORMAT_UNDEFINED){
         fmt_msg_puts("ERROR: Unable to get depth buffer format for Vulkan surface.\n");
         return false;
     }
 
-    VkImageCreateInfo image_create_info = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = depth_format,
-        .extent = {s->window_w, s->window_h}, // TODO: Should this match the swapchain_extent?
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
+    VkImageCreateInfo depth_create_info = vulkan__get_depth_create_info();
+    if(!vulkan__create_image(&depth_create_info, &s->depth_buffer)){
+        fmt_msg_puts("ERROR: Unable to create depth buffer.\n");
+        return false;
+    }
 
     return true;
 }
@@ -418,7 +530,6 @@ Cbed_API void vulkan_destroy(){
 ////
 #ifdef OS_Linux
 
-#include <X11/Xlib.h>
 #include <vulkan/vulkan_xlib.h>
 
 static Display *vulkan__display;

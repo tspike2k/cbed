@@ -143,7 +143,12 @@ Cbed_API char *buffer_put_text(Buffer *buffer, const char *text, size_t text_len
 Cbed_API char *buffer_null_terminate(Buffer* buffer);
 
 // Conversion functions
-Cbed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
+Cbed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size);
+Cbed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buffer_size);
+
+Cbed_API f64 str_to_f64(const char *str, size_t s_len, bool* errors);
+Cbed_API f32 str_to_f32(const char *s, size_t s_len, bool *errors);
+Cbed_API s64 str_to_int(const char *s, size_t s_len, bool *errors);
 
 #define str_lit(s) (String){(s), Array_Len((s))-1} // sizeof includes the null terminator when used on string literals. Interesting.
 #define make_str(s, count) (String){(char*)(s), (count)}
@@ -152,9 +157,6 @@ Cbed_API bool str_to_f32(const char *s, size_t s_len, f32* f);
 // String formatting functions
 //
 
-//String int_to_string(s64 n, u32 base, Buffer* buffer);
-Cbed_API String uint_to_string(u64 n, u32 base, char* buffer, size_t buffer_size);
-Cbed_API String float_to_string(f32 f, u32 precision, char *buffer, size_t buffer_size);
 
 typedef struct{
     uint32_t info; // TODO: This should contain both the arg type and an array count. Array count is limited!

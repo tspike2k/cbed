@@ -43,9 +43,9 @@ Cbed_API bool hotload_test(Buffer *memory){
     Display_Info display = display_get_info();
     Vec2 window_center = v2_muls((Vec2){display.window_width, display.window_height}, 0.5f);
 
-    draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){-100, -100}), 200, 200), 0xff00ff00);
-    draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 200, 200), 0xff0000ff);
-    draw_rect(rect_from_min_wh(v2_add(window_center, (Vec2){0, 0}), 100, 100), 0xff00ffff);
+    draw_rect(rect_from_min_wh(v2_add(window_center, v2(-100, -100)), 200, 200), 0xff00ff00);
+    draw_rect(rect_from_min_wh(v2_add(window_center, v2(0, 0)), 200, 200), 0xff0000ff);
+    draw_rect(rect_from_min_wh(v2_add(window_center, v2(0, 0)), 100, 100), 0xff00ffff);
 
     draw_frame_end();
 

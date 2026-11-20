@@ -20,15 +20,29 @@
 #include "common.c"
 #define Display_Vulkan
 #include "display.c"
-/*#include "vulkan.c"*/
+#include "vulkan.h"
+#include "files.c"
+#include "obj.c"
 
-u8 g_memory[8*1024*1024];
+u8 g_scratch[8*1024*1024];
+u8 g_temp[8*1024*1024];
+u8 g_memory[4*1024*1024];
 
 #define Window_W 512
 #define Window_H 512
 
 int main(void){
+    Buffer memory  = {g_memory, Array_Len(g_memory)};
+    Buffer temp    = {g_temp, Array_Len(g_temp)};
+    Buffer scratch = {g_scratch, Array_Len(g_scratch)};
+
     bool running = display_begin("Vulkan Test", 1024, 768, 0);
+
+    Obj_Data obj_data;
+    if(!obj_parse_file(&obj_data, "./bin/cube.obj", &temp, &scratch)){
+        fmt_msg_puts("ERROR: Unable to load obj file.\n");
+        running = false;
+    };
 
     while(running){
         Event event;

@@ -61,20 +61,13 @@ static String obj__eat_between_whitespace(String *reader){
     return result;
 }
 
-static u32 obj__parse_f32_line(String line, f32 *data, u32 data_max){
+static u32 obj__parse_f32_line(String line, f32 *data, u32 data_max, bool *errors){
     // TODO: Return the total number of items on a line, even if we don't have room to store them
     // all. This would allow us to report if a vertex attribute is malformed.
     u32 count = 0;
     while(line.size && count < data_max){
         String s = obj__eat_between_whitespace(&line);
-        if(!str_to_f32(s.text, s.size, &data[count++])){
-            // TODO: Should we do better error reporting here? If we returned a bool, this
-            // would allow us to log that a parsing error occured rather than being ambilgous
-            // as to wheather it's a parsing error or too few components specified for the
-            // vertex attribute.
-            count = 0; // This will trigger an error if we can't correctly parse as an f32.
-            break;
-        }
+        data[count++] = str_to_f32(s.text, s.size, errors);
     }
     return count;
 }
@@ -123,6 +116,7 @@ static String obj__eat_until_slash(String *reader){
     return result;
 }
 
+#if 0
 static bool obj__parse_face_vertex_index(String str, s32 *index){
     bool error = false;
     s64 value;
@@ -139,6 +133,7 @@ static bool obj__parse_face_vertex_index(String str, s32 *index){
 
     return !error;
 }
+#endif
 
 static bool obj__parse_face_vertex(Obj__Face_Vertex *v, String *reader){
     bool error = false;
@@ -148,14 +143,9 @@ static bool obj__parse_face_vertex(Obj__Face_Vertex *v, String *reader){
     String str1 = obj__eat_until_slash(&cmd);
     String str2 = obj__eat_until_slash(&cmd);
 
-    if(!obj__parse_face_vertex_index(str0, &v->v_index))
-        error = true;
-
-    if(!obj__parse_face_vertex_index(str1, &v->vt_index))
-        error = true;
-
-    if(!obj__parse_face_vertex_index(str2, &v->vn_index))
-        error = true;
+    v->v_index = str_to_int(str0.text, str0.size, &error);
+    v->vt_index = str_to_int(str1.text, str1.size, &error);
+    v->vn_index = str_to_int(str2.text, str2.size, &error);
 
     return !error;
 }
@@ -184,7 +174,7 @@ Cbed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest,
         if(str_match(cmd, str("v"))){
             assert(v_index < internal->v_count);
             Obj__V *v = &internal->v[v_index++];
-            v->count = obj__parse_f32_line(line, v->data, Array_Len(v->data));
+            v->count = obj__parse_f32_line(line, v->data, Array_Len(v->data), &error);
 
             if(v->count != 3 && v->count != 4 && v->count != 6){
                 // TODO: Error handling (report and propogate)
@@ -194,7 +184,7 @@ Cbed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest,
         else if(str_match(cmd, str("vn"))){
             assert(vn_index < internal->vn_count);
             Obj__3F *vn = &internal->vn[vn_index++];
-            size_t count = obj__parse_f32_line(line, vn->data, Array_Len(vn->data));
+            size_t count = obj__parse_f32_line(line, vn->data, Array_Len(vn->data), &error);
             if(count != 3){
                 error = true;
                 // TODO: Error handling (report and propogate)
@@ -203,7 +193,7 @@ Cbed_API bool obj_parse_file(Obj_Data *obj, const char *file_name, Buffer *dest,
         else if(str_match(cmd, str("vt"))){
             assert(vt_index < internal->vt_count);
             Obj__3F *vt = &internal->vt[vt_index++];
-            size_t count = obj__parse_f32_line(line, vt->data, Array_Len(vt->data));
+            size_t count = obj__parse_f32_line(line, vt->data, Array_Len(vt->data), &error);
 
             // NOTE: If the v and w components default to 0 if not specified.
             // We don't have to set manually as the buffer allocation cleared the memory

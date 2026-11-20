@@ -334,17 +334,25 @@ Cbed_API char *str_find_last(String s, char c){
 // or the same license used by the rest of the code in this file.
 //
 // TODO: Find out what algorithm this is and what it's limitations are.
-Cbed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
+Cbed_API f64 str_to_f64(const char *str, size_t s_len, bool* errors){
+    f64 result = 0;
+    bool success = true;
+
     const char *p = str;
+    const char *end = &str[s_len];
     double value=0;
     int base=10;
     int exponent=0;
 
-    bool success = true;
+    const char *lead = p;
+    if(*p == '-') p++;
 
     for(;;){
         if (*p >= '0' && *p <= '9')
             value = value*base + (*p++ - '0');
+        else if (p == end || *p == '.'){
+            break;
+        }
         else{
             success = false;
             break;
@@ -357,6 +365,9 @@ Cbed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
         for (power=1; ; power*=base) {
             if (*p >= '0' && *p <= '9')
                 addend = addend*base + (*p++ - '0');
+            else if(p == end){
+                break;
+            }
             else{
                 success = false;
                 break;
@@ -382,16 +393,54 @@ Cbed_API bool str_to_f64(const char *str, size_t s_len, f64* d){
             value *= power;
     }
 
-    *d = value;
-    return success;
+    if(*lead == '-'){
+        value *= -1.0;
+    }
+
+    if(success){
+        result = value;
+    }
+    else if(errors != NULL){
+        *errors = true;
+    }
+
+    return result;
 }
 
-Cbed_API bool str_to_f32(const char *s, size_t s_len, f32* f){
+Cbed_API f32 str_to_f32(const char *s, size_t s_len, bool *errors){
     // TODO: It seems there are a wealth of new ideas on how to
     // https://research.swtch.com/fp
-    f64 d = 0;
-    bool result = str_to_f64(s, s_len, &d);
-    *f = d;
+    f32 result = str_to_f64(s, s_len, errors);
+    return result;
+}
+
+Cbed_API s64 str_to_int(const char *s, size_t s_len, bool *errors){
+    s64 result = 0;
+    bool success = true;
+
+    // TODO: Parse string start for negative sign and 0x prefix for hex.
+
+    u32 base = 10;
+
+    s64 value = 0;
+    for(size_t i = s_len; i > 0; i--){
+        char c = s[i-1];
+        if(c >= '0' && c <= '9'){
+            value += (c - '0') * fmt__pow(base, s_len - i);
+        }
+        else{
+            success = false;
+            break;
+        }
+    }
+
+    if(success){
+        result = value;
+    }
+    else if(errors != NULL){
+        *errors = true;
+    }
+
     return result;
 }
 
