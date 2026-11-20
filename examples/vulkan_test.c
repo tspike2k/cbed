@@ -31,6 +31,12 @@ u8 g_memory[4*1024*1024];
 #define Window_W 512
 #define Window_H 512
 
+typedef struct {
+    Vec3 pos;
+    Vec3 normal;
+    Vec2 uv;
+} Vertex;
+
 int main(void){
     Buffer memory  = {g_memory, Array_Len(g_memory)};
     Buffer temp    = {g_temp, Array_Len(g_temp)};
@@ -38,11 +44,47 @@ int main(void){
 
     bool running = display_begin("Vulkan Test", 1024, 768, 0);
 
+    u32 vertices_count = 0;
+    Vertex *vertices = NULL;
+
     Obj_Data obj_data;
-    if(!obj_parse_file(&obj_data, "./bin/cube.obj", &temp, &scratch)){
+    if(obj_parse_file(&obj_data, "./bin/cube.obj", &temp, &scratch)){
+        u32 vertices_per_face = 3;
+        vertices_count = obj_data.faces_count * vertices_per_face;
+        vertices = buffer_push_array(Vertex, &memory, vertices_count);
+
+        for_count(u32, face_index, obj_data.faces_count){
+            Obj_Polygon polygon = obj_polygon_from_face(&obj_data, face_index);
+
+            assert(polygon.flags & (Obj_Flag_Texture | Obj_Flag_Normal));
+            assert(polygon.vertex_count == vertices_per_face);
+
+            for_count(u32, v_index, vertices_per_face){
+                Obj_Vertex *src = &polygon.vertex[v_index];
+                Vertex *dest = &vertices[face_index * vertices_per_face + v_index];
+
+                dest->pos    = v3(src->position.x, src->position.y, src->position.z);
+                dest->normal = src->normal;
+                dest->uv     = v2(src->texture.x, src->texture.y);
+            }
+        }
+    }
+    else{
         fmt_msg_puts("ERROR: Unable to load obj file.\n");
         running = false;
+
     };
+
+    u32 vertex_per_face = 3;
+    u32 mesh_buffer_size = vertices_count * sizeof(Vertex) + sizeof(u16) * vertices_count;
+    VkBufferUsageFlags mesh_usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    Vulkan_Buffer mesh_buffer;
+    if(vulkan_create_buffer(mesh_buffer_size, mesh_usage, &mesh_buffer)){
+        memcpy(mesh_buffer.mapped_ptr, vertices, vertices_count * sizeof(Vertex));
+    }
+    else{
+        running = false;
+    }
 
     while(running){
         Event event;

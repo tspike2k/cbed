@@ -344,8 +344,11 @@ Cbed_API f64 str_to_f64(const char *str, size_t s_len, bool* errors){
     int base=10;
     int exponent=0;
 
-    const char *lead = p;
-    if(*p == '-') p++;
+    bool is_negative = false;
+    if(*p == '-'){
+        is_negative = true;
+        p++;
+    }
 
     for(;;){
         if (*p >= '0' && *p <= '9')
@@ -393,7 +396,7 @@ Cbed_API f64 str_to_f64(const char *str, size_t s_len, bool* errors){
             value *= power;
     }
 
-    if(*lead == '-'){
+    if(is_negative){
         value *= -1.0;
     }
 

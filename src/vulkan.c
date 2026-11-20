@@ -21,7 +21,6 @@ Additional resources that might be worth using in the future:
 */
 
 #include "vulkan.h"
-#include <vulkan/vulkan.h>
 
 #define Vulkan__Target_API_Version VK_API_VERSION_1_3
 
@@ -110,18 +109,71 @@ static u32 vulkan__find_memory_type_index(u32 memory_type_bits, VkMemoryProperty
     // TODO: Should we have a better way of reporting an error?
     u32 result = UINT32_MAX;
 
+    VkMemoryType *memory_types = s->memory_properties.memoryTypes;
+
     // Loop through each memory index and check to see if the bit flags indicate the memory
     // index is supported. Also check to see if the given index supports the memory properties
     // we require.
     for_count(u32, i, s->memory_properties.memoryTypeCount){
         if((memory_type_bits & (1 << i))
-        && s->memory_properties.memoryTypes[i].propertyFlags & target_properties){
+        && (memory_types[i].propertyFlags & target_properties) == target_properties){
             result = i;
             break;
         }
     }
 
+    // TODO: Better way of flagging if we can't find a valid memory type index?
+    // This should certainly be exposed to the caller somehow.
+    assert(result != UINT32_MAX);
     return result;
+}
+
+Cbed_API bool vulkan_create_buffer(u32 size, VkBufferUsageFlags usage, Vulkan_Buffer *buffer){
+    Vulkan_State *s = &vulkan__state;
+    bool success = false;
+
+    VkBufferCreateInfo buffer_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    if(vkCreateBuffer(s->device, &buffer_info, NULL, &buffer->handle) == VK_SUCCESS){
+        VkMemoryRequirements requirments;
+        vkGetBufferMemoryRequirements(s->device, buffer->handle, &requirments);
+
+        // This seems to be (RE)BAR/SAM access.
+        VkMemoryPropertyFlags target_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                                                | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                                                | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+        VkMemoryAllocateInfo alloc_info = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize = requirments.size,
+            .memoryTypeIndex = vulkan__find_memory_type_index(requirments.memoryTypeBits, target_properties),
+        };
+
+        if(vkAllocateMemory(s->device, &alloc_info, NULL, &buffer->memory) == VK_SUCCESS){
+            // TODO: I guess you don't need to bind the buffer if you're mapping the buffer?
+            /*vkBindBufferMemory(s->device, buffer->handle, buffer->memory, 0); // TODO: Can this fail?*/
+
+            if(vkMapMemory(s->device, buffer->memory, 0, VK_WHOLE_SIZE, 0, &buffer->mapped_ptr) == VK_SUCCESS){
+                success = true;
+            }
+            else{
+                fmt_msg_puts("ERROR: Unable to map memory for Vulkan buffer.\n");
+            }
+        }
+        else{
+            fmt_msg_puts("ERROR: Unable to allocate Vulkan buffer memory.\n");
+        }
+    }
+    else{
+        fmt_msg_puts("ERROR: Unable to create Vulkan buffer.\n");
+    }
+
+    return success;
 }
 
 static bool vulkan__create_image(VkImageCreateInfo *c_info, Vulkan_Image* img){
