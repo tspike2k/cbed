@@ -23,6 +23,7 @@
 #include "vulkan.h"
 #include "files.c"
 #include "obj.c"
+#include "img.c"
 
 u8 g_scratch[8*1024*1024];
 u8 g_temp[8*1024*1024];
@@ -107,6 +108,19 @@ int main(void){
     }
     else{
         running = false;
+    }
+
+    Vulkan_Image texture;
+    if(running){
+        Img_Pixels pixels = img_load_tga("./bin/test.tga", &temp, &scratch);
+        if(pixels.data){
+            if(!vulkan_load_texture(pixels.data, pixels.width, pixels.height, &texture)){
+                running = false;
+            }
+        }
+        else{
+            running = false;
+        }
     }
 
     while(running){

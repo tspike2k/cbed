@@ -18,6 +18,12 @@
 #endif
 
 typedef struct{
+    VkImage        image;
+    VkDeviceMemory memory;
+    VkImageView    view;
+} Vulkan_Image;
+
+typedef struct{
     VkBuffer       handle;
     VkDeviceMemory memory;
     void          *mapped_ptr;
@@ -39,5 +45,6 @@ typedef struct{
 Cbed_API bool vulkan_init(Vulkan_Init_Params *params);
 Cbed_API void vulkan_destroy();
 Cbed_API bool vulkan_create_buffer(u32 size, VkBufferUsageFlags usage, Vulkan_Buffer *buffer);
+Cbed_API bool vulkan_load_texture(u32 *pixels, u32 width, u32 height, Vulkan_Image *texture);
 
 #endif // CBED_VULKAN

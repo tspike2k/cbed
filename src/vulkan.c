@@ -48,12 +48,6 @@ TODO:
 #endif
 
 typedef struct{
-    VkImage        image;
-    VkDeviceMemory memory;
-    VkImageView    view;
-} Vulkan_Image;
-
-typedef struct{
     VkInstance     instance;
     VkDevice       device;
     VkSurfaceKHR   surface;
@@ -218,6 +212,9 @@ static bool vulkan__create_image(VkImageCreateInfo *c_info, Vulkan_Image* img){
             u32 aspect_mask = 0;
             if(c_info->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT){
                 aspect_mask |= VK_IMAGE_ASPECT_DEPTH_BIT;
+            }
+            else if(c_info->usage & VK_IMAGE_USAGE_SAMPLED_BIT){
+                aspect_mask |= VK_IMAGE_ASPECT_COLOR_BIT;
             }
 
             // TODO: Do all images really need a view? Maybe not.
@@ -681,6 +678,35 @@ Cbed_API void vulkan_destroy(){
     if(s->instance){
         vkDestroyInstance(s->instance, NULL);
     }
+}
+
+Cbed_API bool vulkan_load_texture(u32 *pixels, u32 width, u32 height, Vulkan_Image *texture){
+    bool success = false;
+
+    u32 pixels_size = width*height*sizeof(u32);
+    VkImageCreateInfo image_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = Vulkan__Texture_Format,
+        .extent = {.width = width, .height = height, .depth = 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    };
+
+    Vulkan_Image image;
+    if(vulkan__create_image(&image_cinfo, &image)){
+        Vulkan_Buffer staging;
+        if(vulkan_create_buffer(pixels_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging)){
+            // TODO: Actually transfer pixels to image via staging buffer.
+            success = true;
+        }
+    }
+
+    return success;
 }
 
 ////
