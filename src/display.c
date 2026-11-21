@@ -8,6 +8,8 @@
 #include <string.h>
 #include <assert.h>
 
+static u8 display__memory_buffer[1*1024*1024]; // TODO: Is this a big large?
+
 /*
 TODO:
     - Should we rename this to desktop.d? events.d? pal.d (Platform Abstraction Layer)?
@@ -68,6 +70,8 @@ typedef struct{
 } Xlib_Window;
 
 typedef struct{
+    Buffer   memory;
+
     Display *display;
     Atom     atom_WMState;
     Atom     atom_WMStateFullscreen;
@@ -877,7 +881,7 @@ static bool display__init_sw_window(Xlib_Window *window){
 }
 
 #ifdef Display_Vulkan
-static bool display__init_vulkan_window(Display *display, Xlib_Window *window, bool debug_mode){
+static bool display__init_vulkan_window(Display *display, Xlib_Window *window, bool debug_mode, Buffer *memory){
     int default_screen = DefaultScreen(display);
 
     bool result = false;
@@ -886,11 +890,21 @@ static bool display__init_vulkan_window(Display *display, Xlib_Window *window, b
     XVisualInfo visual_info;
     if(XMatchVisualInfo(display, default_screen, 24, TrueColor, &visual_info)){
         if(display__create_window(window, visual_info.screen, visual_info.visual, visual_info.depth)){
-            if(vulkan_init(display, window->handle, window->width, window->height, window->title, debug_mode)){
+            Vulkan_Init_Params init_params = {
+                .window_width  = window->width,
+                .window_height = window->height,
+                .app_name      = window->title,
+                .debug_mode    = debug_mode,
 
+                .memory        = memory,
+
+                .xlib_display = display,
+                .xlib_window  = window->handle,
+            };
+
+            if(vulkan_init(&init_params)){
+                result = true;
             }
-
-            result = true;
         }
     }
     else{
@@ -901,8 +915,10 @@ static bool display__init_vulkan_window(Display *display, Xlib_Window *window, b
 }
 #endif //
 
-Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t height, uint32_t window_flags){
+Cbed_API bool display_begin(const char *window_title, u32 width, u32 height, u32 window_flags){
     Xlib *s = &display__xlib;
+
+    s->memory = (Buffer){display__memory_buffer, Array_Len(display__memory_buffer)};
 
     s->display = XOpenDisplay(NULL);
     if(!s->display){
@@ -922,6 +938,7 @@ Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t h
     window->title  = window_title;
     window->width  = width;
     window->height = height;
+
     window->flags = window_flags;
 
     // TODO: Using hardware rendering should be the default assumption. The user should have
@@ -950,7 +967,7 @@ Cbed_API bool display_begin(const char *window_title, uint32_t width, uint32_t h
 
 #ifdef Display_Vulkan
     if(!use_sw_rendering){
-        if(!display__init_vulkan_window(s->display, window, debug_mode)){
+        if(!display__init_vulkan_window(s->display, window, debug_mode, &s->memory)){
             use_sw_rendering = true;
         }
     }

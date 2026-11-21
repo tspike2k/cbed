@@ -9,20 +9,35 @@
 #include <vulkan/vulkan.h>
 #include "common.h"
 
+#ifdef OS_Linux
+#  include <X11/Xlib.h>
+#endif
+
+#ifndef Constants_Buffer_Size
+#  define Constants_Buffer_Size 1024
+#endif
+
 typedef struct{
     VkBuffer       handle;
     VkDeviceMemory memory;
     void          *mapped_ptr;
 } Vulkan_Buffer;
 
-//
-// Platform-specific APIs
-//
+typedef struct{
+    const char* app_name;
+    u32 window_width;
+    u32 window_height;
+    bool debug_mode;
+    Buffer *memory;
+
 #ifdef OS_Linux
+    Display *xlib_display;
+    Window   xlib_window;
+#endif
+} Vulkan_Init_Params;
 
-#include <X11/Xlib.h>
-Cbed_API bool vulkan_init(Display *display, Window window, u32 window_w, u32 window_h, const char* app_name, bool debugging);
-
-#endif // OS_Linux
+Cbed_API bool vulkan_init(Vulkan_Init_Params *params);
+Cbed_API void vulkan_destroy();
+Cbed_API bool vulkan_create_buffer(u32 size, VkBufferUsageFlags usage, Vulkan_Buffer *buffer);
 
 #endif // CBED_VULKAN

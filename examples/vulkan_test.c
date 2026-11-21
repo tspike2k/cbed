@@ -37,6 +37,14 @@ typedef struct {
     Vec2 uv;
 } Vertex;
 
+typedef struct{
+    Mat4 projection;
+    Mat4 view;
+    Mat4 model[3]; // TODO: Why 3?
+    Vec4 light_pos;
+    u32 selected; // TODO: What is this for?
+} Shader_Constants;
+
 int main(void){
     Buffer memory  = {g_memory, Array_Len(g_memory)};
     Buffer temp    = {g_temp, Array_Len(g_temp)};
@@ -44,14 +52,23 @@ int main(void){
 
     bool running = display_begin("Vulkan Test", 1024, 768, 0);
 
-    u32 vertices_count = 0;
-    Vertex *vertices = NULL;
+    assert(sizeof(Shader_Constants) <= Constants_Buffer_Size);
+
+    u32     mesh_vertices_count = 0;
+    Vertex *mesh_vertices = NULL;
+    u16    *mesh_indeces  = NULL;
 
     Obj_Data obj_data;
     if(obj_parse_file(&obj_data, "./bin/cube.obj", &temp, &scratch)){
         u32 vertices_per_face = 3;
-        vertices_count = obj_data.faces_count * vertices_per_face;
-        vertices = buffer_push_array(Vertex, &memory, vertices_count);
+        mesh_vertices_count = obj_data.faces_count * vertices_per_face;
+        mesh_vertices = buffer_push_array(Vertex, &memory, mesh_vertices_count);
+
+        // TODO: Are these the correct indeces for an obj file? I think so.
+        mesh_indeces = buffer_push_array(u16, &memory, mesh_vertices_count);
+        for_count(u32, i, mesh_vertices_count){
+            mesh_indeces[i] = i;
+        }
 
         for_count(u32, face_index, obj_data.faces_count){
             Obj_Polygon polygon = obj_polygon_from_face(&obj_data, face_index);
@@ -61,7 +78,7 @@ int main(void){
 
             for_count(u32, v_index, vertices_per_face){
                 Obj_Vertex *src = &polygon.vertex[v_index];
-                Vertex *dest = &vertices[face_index * vertices_per_face + v_index];
+                Vertex *dest = &mesh_vertices[face_index * vertices_per_face + v_index];
 
                 dest->pos    = v3(src->position.x, src->position.y, src->position.z);
                 dest->normal = src->normal;
@@ -75,12 +92,18 @@ int main(void){
 
     };
 
-    u32 vertex_per_face = 3;
-    u32 mesh_buffer_size = vertices_count * sizeof(Vertex) + sizeof(u16) * vertices_count;
+    u32 mesh_vertex_buffer_size = sizeof(Vertex) * mesh_vertices_count;
+    u32 mesh_index_buffer_size  = sizeof(u16) * mesh_vertices_count;
+    u32 mesh_buffer_size = mesh_vertex_buffer_size + mesh_index_buffer_size;
+
     VkBufferUsageFlags mesh_usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+    // TODO: Should we call this vulkan_create_mapped_buffer?
     Vulkan_Buffer mesh_buffer;
     if(vulkan_create_buffer(mesh_buffer_size, mesh_usage, &mesh_buffer)){
-        memcpy(mesh_buffer.mapped_ptr, vertices, vertices_count * sizeof(Vertex));
+        memcpy(mesh_buffer.mapped_ptr, mesh_vertices, mesh_vertex_buffer_size);
+        void *index_buffer_memory = mesh_buffer.mapped_ptr + mesh_vertex_buffer_size;
+        memcpy(index_buffer_memory, mesh_indeces, mesh_index_buffer_size);
     }
     else{
         running = false;
@@ -109,36 +132,3 @@ int main(void){
     display_end();
     return 0;
 }
-
-
-
-#if 0
-int main(void){
-    Buffer memory = {&g_memory[0], Array_Len(g_memory)};
-
-    Display *display = XOpenDisplay(NULL);
-    if(display){
-        int screen = DefaultScreen(display);
-        Window window = XCreateSimpleWindow(display, RootWindow(display, screen), 0, 0, Window_W, Window_H, 0, 0, 0);
-        XMapWindow(display, window);
-        XSync(display, True);
-
-        if(window){
-            if(vulkan_init(display, window, Window_W, Window_H, "Vulkan Test", true)){
-                fmt_msg_puts("Initialized Vulkan!\n");
-
-
-                vulkan_destroy();
-            }
-        }
-        else{
-            fmt_msg("ERROR: Unable to create Xlib window!\n");
-        }
-    }
-    else{
-        fmt_msg("ERROR: Unable to create Xlib display!\n");
-    }
-
-    return 0;
-}
-#endif

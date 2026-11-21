@@ -20,15 +20,26 @@ Additional resources that might be worth using in the future:
     https://www.youtube.com/watch?v=onQyefRdiMA
 */
 
+/*
+TODO:
+    - Enable the "synchronization validation preset" in debug mode.
+*/
+
 #include "vulkan.h"
 
 #define Vulkan__Target_API_Version VK_API_VERSION_1_3
+#define Vulkan__Frames_In_Flight_Max 2
 
 #ifdef OS_Linux
 #include <vulkan/vulkan_xlib.h>
 
     // Target instance extensions
-    const char* vulkan__instance_extensions[] ={
+    const char* vulkan__instance_extensions[] = {
+        "VK_KHR_surface",
+        VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+    };
+
+    const char* vulkan__instance_extensions_debug[] = {
         "VK_KHR_surface",
         VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME
@@ -47,7 +58,9 @@ typedef struct{
     VkSurfaceKHR   surface;
     VkQueue        device_queue;
     u32            queue_family_index;
+
     VkSwapchainKHR swapchain;
+    u32            swapchain_images_count;
     u32            swapchain_w;
     u32            swapchain_h;
 
@@ -56,13 +69,13 @@ typedef struct{
 
     VkPhysicalDeviceMemoryProperties memory_properties;
 
-    // Client data.
-    const char *app_name;
-    bool        debug;
+    Vulkan_Buffer constants_buffers[Vulkan__Frames_In_Flight_Max];
+    VkFence       fences[Vulkan__Frames_In_Flight_Max];
+    VkSemaphore   image_acquired_semaphores[Vulkan__Frames_In_Flight_Max];
+    u32           render_complete_semaphores_count;
+    VkSemaphore  *render_complete_semaphores;
 
-    // TODO: Width and height should really be stored in client data, should it?
-    u32         window_w;
-    u32         window_h;
+    Vulkan_Init_Params init_params; // Client data.
 } Vulkan_State;
 
 static Vulkan_State vulkan__state;
@@ -232,15 +245,16 @@ static bool vulkan__create_image(VkImageCreateInfo *c_info, Vulkan_Image* img){
     return result;
 }
 
-static bool vulkan__init(void){
+Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
     Vulkan_State *s = &vulkan__state;
+    s->init_params = *params;
 
     //
     // Create a new Vulkan instance
     //
     VkApplicationInfo app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = s->app_name,
+        .pApplicationName = params->app_name,
         .apiVersion = Vulkan__Target_API_Version
     };
 
@@ -261,15 +275,9 @@ static bool vulkan__init(void){
 
     const char **instance_extensions = vulkan__instance_extensions;
     u32 instance_extensions_count = Array_Len(vulkan__instance_extensions);
-    if(!s->debug){
-        // If we're not in debug mode, we should trim the ending debug extension.
-        // Thanks to string spooling, a simple pointer comparison should work to
-        // tell if these strings match, for a sanity check.
-        //
-        // TODO: To make these more reasonable, should enabling debugging be a compile-time
-        // option?
-        assert(vulkan__instance_extensions[instance_extensions_count-1] == (const char *)VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        instance_extensions_count--;
+    if(params->debug_mode){
+        instance_extensions = vulkan__instance_extensions_debug;
+        instance_extensions_count = Array_Len(vulkan__instance_extensions_debug);
     }
 
     // TODO: Should we use vkEnumerateInstanceExtensionProperties to make sure the extensions
@@ -281,7 +289,7 @@ static bool vulkan__init(void){
         .ppEnabledExtensionNames = instance_extensions,
     };
 
-    if(s->debug){
+    if(params->debug_mode){
         instance_info.pNext               = &debug_info;
         instance_info.enabledLayerCount   = layers_count;
         instance_info.ppEnabledLayerNames = layers;
@@ -472,7 +480,7 @@ static bool vulkan__init(void){
         // 0xFFFFFFFF, then the swapchain needs its own extents set to the size of the window.
         // As a window manager, you'd think Wayland would know the window extents and pass that
         // to us, but I guess it needs our help here.
-        swapchain_extent = (VkExtent2D){s->window_w, s->window_h};
+        swapchain_extent = (VkExtent2D){params->window_width, params->window_height};
     }
 
     // TODO: Some tutorials say we should use less. Should we? Two is double buffering, right?
@@ -515,8 +523,12 @@ static bool vulkan__init(void){
         return false;
     }
 
-    // TODO: Do we need to store the images? Why?
-    /*u32 image_count= 0;*/
+    if(vkGetSwapchainImagesKHR(s->device, s->swapchain, &s->swapchain_images_count, NULL) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to get Vulkan swapchain images count.\n");
+        return false;
+    }
+
+
     /*chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr));*/
     /*swapchainImages.resize(imageCount);*/
     /*chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data()));*/
@@ -548,8 +560,59 @@ static bool vulkan__init(void){
 
     VkImageCreateInfo depth_create_info = vulkan__get_depth_create_info();
     if(!vulkan__create_image(&depth_create_info, &s->depth_buffer)){
-        fmt_msg_puts("ERROR: Unable to create depth buffer.\n");
+        fmt_msg_puts("ERROR: Unable to create Vulkan depth buffer.\n");
         return false;
+    }
+
+    //
+    // Create the constant buffer
+    //
+
+    VkBufferUsageFlags constants_usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    for_count(u32, i, Array_Len(s->constants_buffers)){
+        // TODO: Do we need to use vkGetBufferDeviceAddress? See here for more:
+        // https://www.howtovulkan.com/#shader-data-buffers
+        if(!vulkan_create_buffer(Constants_Buffer_Size, constants_usage, &s->constants_buffers[i])){
+            fmt_msg_puts("ERROR: Unable to create Vulkan constants buffer.\n");
+            return false;
+        }
+    }
+
+    //
+    // Crate synchronization data
+    //
+    VkFenceCreateInfo fence_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    for_count(u32, i, Array_Len(s->fences)){
+        if(vkCreateFence(s->device, &fence_cinfo, NULL, &s->fences[i]) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to create Vulkan fence.\n");
+            return false;
+        }
+    }
+
+    VkSemaphoreCreateInfo semaphore_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    for_count(u32, i, Array_Len(s->image_acquired_semaphores)){
+        if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->image_acquired_semaphores[i]) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to create Vulkan semaphore.\n");
+            return false;
+        }
+    }
+
+    s->render_complete_semaphores_count = s->swapchain_images_count;
+    s->render_complete_semaphores = buffer_push_array(VkSemaphore, params->memory, s->render_complete_semaphores_count);
+
+    for_count(u32, i, s->render_complete_semaphores_count){
+        VkSemaphore *semaphore = &s->render_complete_semaphores[i];
+        if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, semaphore) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to create Vulkan semaphore.\n");
+            return false;
+        }
     }
 
     return true;
@@ -584,40 +647,19 @@ Cbed_API void vulkan_destroy(){
 
 #include <vulkan/vulkan_xlib.h>
 
-static Display *vulkan__display;
-static Window   vulkan__window;
-
 static bool vulkan__init_surface(){
     Vulkan_State *s = &vulkan__state;
+    Vulkan_Init_Params *params = &s->init_params;
 
     VkXlibSurfaceCreateInfoKHR surface_info = {
         .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
         // .flags = ???, // TODO: What flags? Do we need to set flags?
-        .dpy    = vulkan__display,
-        .window = vulkan__window,
+        .dpy    = params->xlib_display,
+        .window = params->xlib_window,
     };
 
     if(vkCreateXlibSurfaceKHR(s->instance, &surface_info, NULL, &s->surface) != VK_SUCCESS){
         fmt_msg_puts("ERROR: Unable to create Vulkan surface.\n");
-        return false;
-    }
-
-    return true;
-}
-
-Cbed_API bool vulkan_init(Display *display, Window window, u32 window_w, u32 window_h, const char* app_name, bool debugging){
-    Vulkan_State *s = &vulkan__state;
-
-    vulkan__display = display;
-    vulkan__window  = window;
-
-    s->app_name         = app_name;
-    s->debug            = debugging;
-    s->window_w         = window_w;
-    s->window_h         = window_h;
-
-    if(!vulkan__init()){
-        // TODO: Report error?
         return false;
     }
 
