@@ -479,42 +479,6 @@ static void *draw__read_bytes(Buffer *buffer, size_t bytes, bool *error){
     return result;
 }
 
-Cbed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size){
-    Buffer buffer = {memory, memory_size};
-    bool error = false;
-
-    Font *font = (Font*)memory;
-    if(memory_size < sizeof(Font)){
-        fmt_msg("Memory for font {0} is too short.\n", fmt_cstr(font_name));
-        return NULL;
-    }
-
-    if(font->header.magic != Font_File_Magic){
-        fmt_msg("Unexpected magic in file header for font {0}\n", fmt_cstr(font_name));
-        return NULL;
-    }
-
-    if(font->header.version != Font_File_Version){
-        fmt_msg(
-            "Unsupported file version for font {0}. Expected {1} but got {2} instead.\n",
-            fmt_cstr(font_name), fmt_i(Font_File_Version), fmt_i(font->header.version)
-        );
-        return NULL;
-    }
-
-    if(memory_size < font->expected_size){
-        fmt_msg("Memory for font {0} appears to be truncated.\n", fmt_cstr(font_name));
-        return NULL;
-    }
-
-    Draw_Texture *texture = draw__get_font_texture_handle(font);
-    u8 *font_base = (u8 *)font;
-    u32 *pixels = (u32 *)&font_base[font->img_pixels_offset];
-
-    *texture = draw_create_texture(font->img_width, font->img_height, pixels, 0);
-    return font;
-}
-
 #ifdef OS_Linux
 //------------------------------------------------------------------------------
 // Linux
@@ -727,7 +691,7 @@ Cbed_API bool draw_begin(Buffer *memory){
     Draw_State *s = &draw__state;
 
     Display_Info info = display_get_info();
-    s->common.hw_rendering = !(info.window_flags & Display_Flag_Software_Render);
+    s->common.hw_rendering = (info.window_flags & Display_Flag_Hardware_Render);
     s->common.memory = memory;
 
     {
@@ -1000,3 +964,44 @@ Cbed_API void draw_destroy_texture(Draw_Texture *texture){
 // Linux
 //------------------------------------------------------------------------------
 #endif
+
+Cbed_API Font *draw_load_font(const char* font_name, void *memory, size_t memory_size){
+    Draw_State *s = &draw__state;
+
+    Buffer buffer = {memory, memory_size};
+    bool error = false;
+
+    Font *font = (Font*)memory;
+    if(memory_size < sizeof(Font)){
+        fmt_msg("Memory for font {0} is too short.\n", fmt_cstr(font_name));
+        return NULL;
+    }
+
+    if(font->header.magic != Font_File_Magic){
+        fmt_msg("Unexpected magic in file header for font {0}\n", fmt_cstr(font_name));
+        return NULL;
+    }
+
+    if(font->header.version != Font_File_Version){
+        fmt_msg(
+            "Unsupported file version for font {0}. Expected {1} but got {2} instead.\n",
+            fmt_cstr(font_name), fmt_i(Font_File_Version), fmt_i(font->header.version)
+        );
+        return NULL;
+    }
+
+    if(memory_size < font->expected_size){
+        fmt_msg("Memory for font {0} appears to be truncated.\n", fmt_cstr(font_name));
+        return NULL;
+    }
+
+    if(s->common.hw_rendering){
+        Draw_Texture *texture = draw__get_font_texture_handle(font);
+        u8 *font_base = (u8 *)font;
+        u32 *pixels = (u32 *)&font_base[font->img_pixels_offset];
+
+        *texture = draw_create_texture(font->img_width, font->img_height, pixels, 0);
+    }
+
+    return font;
+}

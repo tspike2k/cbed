@@ -7,6 +7,8 @@
 #ifndef CBED_DRAW_H
 #define CBED_DRAW_H
 
+// TODO: Get drawing to work with software rendering.
+
 // TODO: Rather than giving each layer a fixed-size buffer, perhaps we should go back to
 // a linked-list approach. Calls to draw_text would allocate a command and a quad for every
 // character in the string. This would complicate the internals, but simplify the API.

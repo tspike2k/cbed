@@ -11,6 +11,7 @@
 
 enum{
     Display_Flag_Software_Render = (1 << 0),
+    Display_Flag_Hardware_Render = (1 << 1),
 };
 
 enum{

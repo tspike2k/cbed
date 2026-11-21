@@ -29,6 +29,7 @@ TODO:
 
 #define Vulkan__Target_API_Version VK_API_VERSION_1_3
 #define Vulkan__Frames_In_Flight_Max 2
+#define Vulkan__Texture_Format VK_FORMAT_R8G8B8A8_SRGB
 
 #ifdef OS_Linux
 #include <vulkan/vulkan_xlib.h>
@@ -69,11 +70,12 @@ typedef struct{
 
     VkPhysicalDeviceMemoryProperties memory_properties;
 
-    Vulkan_Buffer constants_buffers[Vulkan__Frames_In_Flight_Max];
-    VkFence       fences[Vulkan__Frames_In_Flight_Max];
-    VkSemaphore   image_acquired_semaphores[Vulkan__Frames_In_Flight_Max];
-    u32           render_complete_semaphores_count;
-    VkSemaphore  *render_complete_semaphores;
+    VkCommandBuffer command_buffers[Vulkan__Frames_In_Flight_Max];
+    Vulkan_Buffer   constants_buffers[Vulkan__Frames_In_Flight_Max];
+    VkFence         fences[Vulkan__Frames_In_Flight_Max];
+    VkSemaphore     image_acquired_semaphores[Vulkan__Frames_In_Flight_Max];
+    u32             render_complete_semaphores_count;
+    VkSemaphore    *render_complete_semaphores;
 
     Vulkan_Init_Params init_params; // Client data.
 } Vulkan_State;
@@ -347,6 +349,21 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
 
     vkGetPhysicalDeviceMemoryProperties(physical_device, &s->memory_properties);
 
+    VkImageFormatProperties image_properties;
+    VkResult format_result = vkGetPhysicalDeviceImageFormatProperties(
+        physical_device,
+        Vulkan__Texture_Format,
+        VK_IMAGE_TYPE_2D,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        0,
+        &image_properties
+    );
+    if(format_result != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Vulkan doesn't support required texture format.\n");
+        return false;
+    }
+
     //
     // Get the graphics queue. This is used to submit work from the CPU to the GPU. // TODO: Is this accurate?
     // Normally, an application will only need one of these.
@@ -613,6 +630,34 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
             fmt_msg_puts("ERROR: Unable to create Vulkan semaphore.\n");
             return false;
         }
+    }
+
+    //
+    // Command buffer initialization
+    //
+    VkCommandPoolCreateInfo command_pool_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = s->queue_family_index
+    };
+
+    // NOTE: If multiple threads are to fill command buffers, each thread would need their own
+    // command pool.
+    VkCommandPool command_pool;
+    if(vkCreateCommandPool(s->device, &command_pool_cinfo, NULL, &command_pool) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to create Vulkan command pool.\n");
+        return false;
+    }
+
+    VkCommandBufferAllocateInfo command_buffer_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = command_pool,
+        .commandBufferCount = Array_Len(s->command_buffers)
+    };
+
+    if(vkAllocateCommandBuffers(s->device, &command_buffer_cinfo, s->command_buffers) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to create Vulkan command buffers.\n");
+        return false;
     }
 
     return true;

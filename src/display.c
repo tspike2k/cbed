@@ -880,15 +880,38 @@ static bool display__init_sw_window(Xlib_Window *window){
     return result;
 }
 
+#if Display_OpenGL
+static bool display__init_hw_window(Xlib_Window *window){
+    Xlib *s = &display__xlib;
+
+    bool success = false;
+
+    XVisualInfo visual_info;
+    int default_screen = DefaultScreen(s->display);
+    if(display__init_glx(&visual_info, default_screen)){
+        if(display__create_window(window, visual_info.screen, visual_info.visual, visual_info.depth)){
+            glXMakeCurrent(s->display, s->window.handle, s->glx_context);
+            load_opengl_functions((OpenGL_Load_Sym_Func)glXGetProcAddressARB);
+            success = true;
+        }
+    }
+    return success;
+}
+#endif
+
 #ifdef Display_Vulkan
-static bool display__init_vulkan_window(Display *display, Xlib_Window *window, bool debug_mode, Buffer *memory){
-    int default_screen = DefaultScreen(display);
+static bool display__init_hw_window(Xlib_Window *window){
+    Xlib *s = &display__xlib;
+    int default_screen = DefaultScreen(s->display);
+
+    // TODO: Should debug mode be set by the user somehow?
+    bool debug_mode = true;
 
     bool result = false;
     // TODO: Look for a better match on the visual. We want to ensure that we get an RGBA
     // Visual.
     XVisualInfo visual_info;
-    if(XMatchVisualInfo(display, default_screen, 24, TrueColor, &visual_info)){
+    if(XMatchVisualInfo(s->display, default_screen, 24, TrueColor, &visual_info)){
         if(display__create_window(window, visual_info.screen, visual_info.visual, visual_info.depth)){
             Vulkan_Init_Params init_params = {
                 .window_width  = window->width,
@@ -896,9 +919,9 @@ static bool display__init_vulkan_window(Display *display, Xlib_Window *window, b
                 .app_name      = window->title,
                 .debug_mode    = debug_mode,
 
-                .memory        = memory,
+                .memory        = &s->memory,
 
-                .xlib_display = display,
+                .xlib_display = s->display,
                 .xlib_window  = window->handle,
             };
 
@@ -913,10 +936,39 @@ static bool display__init_vulkan_window(Display *display, Xlib_Window *window, b
 
     return result;
 }
-#endif //
+#endif
+
+static bool display__init_window(Xlib_Window *window){
+    bool success = false;
+
+    if(window->flags & Display_Flag_Hardware_Render){
+        success = display__init_hw_window(window);
+    }
+    else if(window->flags & Display_Flag_Software_Render){
+        success = display__init_sw_window(window);
+    }
+    else{
+        // By not supplying the Display_Flag_Hardware_Render or Display_Flag_Software_Render
+        // flag, it is assumed the caller doesn't care which type of window is created. In that
+        // case, we try to get a hardware rendering window first. If that fails, we fall back
+        // to a software rendering one.
+        if(display__init_hw_window(window)){
+            success = true;
+            window->flags |= Display_Flag_Hardware_Render;
+        }
+        else if(display__init_sw_window(window)){
+            window->flags |= Display_Flag_Software_Render;
+            success = true;
+        }
+    }
+
+    return success;
+}
 
 Cbed_API bool display_begin(const char *window_title, u32 width, u32 height, u32 window_flags){
     Xlib *s = &display__xlib;
+
+    bool success = false;
 
     s->memory = (Buffer){display__memory_buffer, Array_Len(display__memory_buffer)};
 
@@ -938,47 +990,10 @@ Cbed_API bool display_begin(const char *window_title, u32 width, u32 height, u32
     window->title  = window_title;
     window->width  = width;
     window->height = height;
-
     window->flags = window_flags;
 
-    // TODO: Using hardware rendering should be the default assumption. The user should have
-    // to opt-in to software rendering.
-    bool use_sw_rendering = window_flags & Display_Flag_Software_Render;
-    bool debug_mode = true; // TODO: Make this a user param? Maybe a display flag?
-
-#ifdef Display_OpenGL
-    if(!use_sw_rendering){
-        XVisualInfo visual_info;
-        int default_screen = DefaultScreen(s->display);
-        if(display__init_glx(&visual_info, default_screen)){
-            if(display__create_window(window, visual_info.screen, visual_info.visual, visual_info.depth)){
-                glXMakeCurrent(s->display, s->window.handle, s->glx_context);
-                load_opengl_functions((OpenGL_Load_Sym_Func)glXGetProcAddressARB);
-            }
-            else{
-                use_sw_rendering = true;
-            }
-        }
-        else{
-            use_sw_rendering = true;
-        }
-    }
-#endif
-
-#ifdef Display_Vulkan
-    if(!use_sw_rendering){
-        if(!display__init_vulkan_window(s->display, window, debug_mode, &s->memory)){
-            use_sw_rendering = true;
-        }
-    }
-#endif
-
-    if(use_sw_rendering){
-        window->flags |= Display_Flag_Software_Render;
-        if(!display__init_sw_window(window)){
-            // TODO: Report an error if we can't get software rendering to work?
-            return false;
-        }
+    if(display__init_window(window)){
+        success = true;
     }
 
     s->use_XI2_for_mouse = display__request_XInput2_mouse_events();
@@ -1018,7 +1033,7 @@ Cbed_API bool display_begin(const char *window_title, u32 width, u32 height, u32
     send_fullscreen_toggle_request();
     XSync(g_x11_display, True);
 #endif
-    return true;
+    return success;
 }
 
 Cbed_API void display_end(){

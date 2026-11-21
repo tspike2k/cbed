@@ -50,7 +50,7 @@ int main(void){
     Buffer temp    = {g_temp, Array_Len(g_temp)};
     Buffer scratch = {g_scratch, Array_Len(g_scratch)};
 
-    bool running = display_begin("Vulkan Test", 1024, 768, 0);
+    bool running = display_begin("Vulkan Test", 1024, 768, Display_Flag_Hardware_Render);
 
     assert(sizeof(Shader_Constants) <= Constants_Buffer_Size);
 
@@ -100,7 +100,7 @@ int main(void){
 
     // TODO: Should we call this vulkan_create_mapped_buffer?
     Vulkan_Buffer mesh_buffer;
-    if(vulkan_create_buffer(mesh_buffer_size, mesh_usage, &mesh_buffer)){
+    if(running && vulkan_create_buffer(mesh_buffer_size, mesh_usage, &mesh_buffer)){
         memcpy(mesh_buffer.mapped_ptr, mesh_vertices, mesh_vertex_buffer_size);
         void *index_buffer_memory = mesh_buffer.mapped_ptr + mesh_vertex_buffer_size;
         memcpy(index_buffer_memory, mesh_indeces, mesh_index_buffer_size);
