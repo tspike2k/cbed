@@ -1044,8 +1044,14 @@ Cbed_API void display_end(){
     }
 
 #ifdef Display_OpenGL
-    if(!(s->window.flags & Display_Flag_Software_Render)){
+    if(s->window.flags & Display_Flag_Hardware_Render){
         XFreeColormap(s->display, s->colormap);
+    }
+#endif
+
+#ifdef Display_Vulkan
+    if(s->window.flags & Display_Flag_Hardware_Render){
+        vulkan_destroy();
     }
 #endif
 
