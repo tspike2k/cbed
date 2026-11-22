@@ -99,6 +99,7 @@ int main(void){
 
     VkBufferUsageFlags mesh_usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 
+#if 0
     // TODO: Should we call this vulkan_create_mapped_buffer?
     Vulkan_Buffer mesh_buffer;
     if(running && vulkan_create_buffer(mesh_buffer_size, mesh_usage, &mesh_buffer)){
@@ -122,6 +123,7 @@ int main(void){
             running = false;
         }
     }
+#endif
 
     while(running){
         Event event;
