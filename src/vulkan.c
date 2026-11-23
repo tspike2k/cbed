@@ -35,6 +35,10 @@ typedef struct{
     u32              queue_family_index;
 
     VkPipelineLayout pipeline_layout;
+    VkPipeline       graphics_pipeline;
+
+    VkCommandPool   command_pool;
+    VkCommandBuffer command_buffer;
 
     VkSwapchainKHR swapchain;
     VkExtent2D     swapchain_extent;
@@ -431,6 +435,22 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         return false;
     }
 
+    // Now request the device feature we need.
+	VkPhysicalDeviceVulkan13Features device_features_1_3 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.synchronization2 = VK_TRUE, // Better synchronization features
+		.dynamicRendering = VK_TRUE, // Removed the need for the old render pass use
+	};
+    VkPhysicalDeviceVulkan12Features device_features_1_2 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = &device_features_1_3,
+		.timelineSemaphore = VK_TRUE
+	};
+    VkPhysicalDeviceFeatures2 device_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &device_features_1_2
+    };
+
     float queue_priority[] = {1.0f};
 	VkDeviceQueueCreateInfo queue_cinfo = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -439,13 +459,15 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
 		.pQueuePriorities = queue_priority
 	};
 
-    VkPhysicalDeviceFeatures device_features = {};
+    /*VkPhysicalDeviceFeatures device_features = {};*/
 
     VkDeviceCreateInfo device_cinfo = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pQueueCreateInfos = &queue_cinfo,
         .queueCreateInfoCount = 1,
-        .pEnabledFeatures = &device_features,
+        /*.pEnabledFeatures = &device_features,*/
+
+        .pNext = &device_features,
 
         .ppEnabledExtensionNames = vulkan__device_extensions,
         .enabledExtensionCount   = Array_Len(vulkan__device_extensions)
@@ -541,6 +563,7 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
+        .lineWidth = 1,
         /*.cullMode = VK_CULL_MODE_BACK_BIT,*/
         /*.frontFace = VK_FRONT_FACE_CLOCKWISE,*/
     };
@@ -550,7 +573,7 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
                         | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
     };
 
-    VkPipelineColorBlendStateCreateInfo color_blending = {
+    VkPipelineColorBlendStateCreateInfo color_blend_cinfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .logicOp = VK_LOGIC_OP_COPY,
         .attachmentCount = 1,
@@ -568,10 +591,72 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         return false;
     }
 
+    u32 image_format = Vulkan__Target_Surface_Format;
+    VkPipelineRenderingCreateInfo rendering_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &image_format,
+        /*.depthAttachmentFormat = depthFormat*/
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisample_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable = VK_FALSE,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        /*.minSampleShading = 1.0f; // Optional*/
+        /*.pSampleMask = nullptr; // Optional*/
+        /*.alphaToCoverageEnable = VK_FALSE; // Optional*/
+        /*.alphaToOneEnable = VK_FALSE; // Optional*/
+    };
+
+    VkGraphicsPipelineCreateInfo pipeline_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &rendering_cinfo,
+        .stageCount = 2,
+        .pStages = shader_stages_cinfo,
+        .pVertexInputState = &vertex_input_cinfo,
+        .pInputAssemblyState = &input_assembly_cinfo,
+        .pViewportState = &viewport_cinfo,
+        .pRasterizationState = &raster_cinfo,
+        .pMultisampleState = &multisample_cinfo,
+        /*.pDepthStencilState = &depthStencilState,*/
+        .pColorBlendState = &color_blend_cinfo,
+        .pDynamicState = &dynamic_state_cinfo,
+        .layout = s->pipeline_layout
+    };
+
+    if(vkCreateGraphicsPipelines(s->device, VK_NULL_HANDLE, 1, &pipeline_cinfo, NULL, &s->graphics_pipeline) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to create Vulkan graphics pipelines.\n");
+        return false;
+    }
+
     vkDestroyShaderModule(s->device, frag_module, NULL);
     vkDestroyShaderModule(s->device, vert_module, NULL);
 
+    VkCommandPoolCreateInfo cmd_pool_cinfo ={
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = s->queue_family_index
+    };
 
+    if(vkCreateCommandPool(s->device, &cmd_pool_cinfo, NULL, &s->command_pool) != VK_SUCCESS) {
+        fmt_msg_puts("ERROR: Unable to create Vulkan command pool.\n");
+        return false;
+    }
+
+    VkCommandBufferAllocateInfo cmd_buffer_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = s->command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1
+    };
+
+    if(vkAllocateCommandBuffers(s->device, &cmd_buffer_cinfo, &s->command_buffer) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to create Vulkan command buffer.\n");
+        return false;
+    }
+
+    /*graphics_pipeline*/
 
     return true;
 }
@@ -579,11 +664,19 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
 Cbed_API void vulkan_destroy(){
     Vulkan_State *s = &vulkan__state;
 
+    // TODO: Are all of these null if invalid/not created?
+    if(s->command_pool){
+        vkDestroyCommandPool(s->device, s->command_pool, NULL);
+    }
+
+    if(s->graphics_pipeline){
+        vkDestroyPipeline(s->device, s->graphics_pipeline, NULL);
+    }
+
     if(s->pipeline_layout){
         vkDestroyPipelineLayout(s->device, s->pipeline_layout, NULL);
     }
 
-    // TODO: Are all of these null if invalid/not created?
     vulkan__destroy_swapchain();
 
     if(s->device){
