@@ -42,6 +42,9 @@ typedef struct{
 #endif
 } Vulkan_Init_Params;
 
+// TODO: We should have a "vulkan_handle_resize() function that will re-create the swapchain
+// when a resize event is generated.
+
 Cbed_API bool vulkan_init(Vulkan_Init_Params *params);
 Cbed_API void vulkan_destroy();
 Cbed_API bool vulkan_create_buffer(u32 size, VkBufferUsageFlags usage, Vulkan_Buffer *buffer);

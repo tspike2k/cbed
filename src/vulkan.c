@@ -6,26 +6,47 @@
 
 /*
 NOTE: This code is based on the following resource:
-https://vulkan-tutorial.com/
 https://www.howtovulkan.com/
+https://vulkan-tutorial.com/
 */
 
 #include "vulkan.h"
 
 #define Vulkan__Target_API_Version VK_API_VERSION_1_3
 
+// This determines the way images are presented to the screen. This is appearently Vsync mode
+// and should be usable on all devices that support Vulkan.
+// https://www.howtovulkan.com/#swapchain
+#define Vulkan__Target_Present_Mode VK_PRESENT_MODE_FIFO_KHR
+
+// TODO: According to https://www.howtovulkan.com/#swapchain, this pairing of surface format and colorspace
+// should be availible on all Vulkan capable devices. However, this is the only place I've seen
+// that says this, so I can't confirm. See if we can find proof of this somewhere.
+#define Vulkan__Target_Surface_Format VK_FORMAT_B8G8R8A8_SRGB
+#define Vulkan__Target_Surface_Colorspace VK_COLORSPACE_SRGB_NONLINEAR_KHR
+
 typedef struct{
-    VkInstance     instance;
-    VkSurfaceKHR   surface;
-    VkDevice       device;
-    VkQueue        graphics_queue;
-    u32            queue_family_index;
+    VkInstance       instance;
+    VkPhysicalDevice physical_device;
+    VkSurfaceKHR     surface;
+    VkDevice         device;
+    VkQueue          graphics_queue;
+    u32              queue_family_index;
+
+    VkSwapchainKHR swapchain;
+    u32            swapchain_w;
+    u32            swapchain_h;
+    u32            swapchain_images_count;
+    VkImage       *swapchain_images;
+    VkImageView   *swapchain_image_views;
 
     Vulkan_Init_Params init_params; // Client data.
 } Vulkan_State;
 
 static Vulkan_State vulkan__state;
 
+// These are the required device extensions. After querying the physical device to ensure they
+// are supported, we then use them when creating the logical device (the VkDevice).
 const char *vulkan__device_extensions[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
@@ -77,8 +98,14 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkan__debug_msg_callback(
     return VK_FALSE;
 }
 
-static bool vulkan__supports_device_extensions(VkPhysicalDevice device){
+static bool vulkan__device_supports_required_extensions(VkPhysicalDevice device){
     bool supported = false;
+
+    // These are the extensions the physical device must support in order for this Vulkan
+    // code to operate correctly.
+
+    const char **extensions = vulkan__device_extensions;
+    u32 extension_count     = Array_Len(vulkan__device_extensions);
 
     u32 props_count;
     if(vkEnumerateDeviceExtensionProperties(device, NULL, &props_count, NULL) == VK_SUCCESS
@@ -87,9 +114,6 @@ static bool vulkan__supports_device_extensions(VkPhysicalDevice device){
         // a scratch buffer at the very least and allocate from it.
         VkExtensionProperties *props = malloc(sizeof(VkExtensionProperties) * props_count);
         if(vkEnumerateDeviceExtensionProperties(device, NULL, &props_count, props) == VK_SUCCESS){
-            const char **extensions = vulkan__device_extensions;
-            u32 extension_count = Array_Len(vulkan__device_extensions);
-
             for_count(u32, prop_index, props_count){
                 const char *src_ext_name = props[prop_index].extensionName;
 
@@ -120,8 +144,7 @@ static bool vulkan__test_physical_device(VkPhysicalDevice device, VkPhysicalDevi
     Vulkan_State *s = &vulkan__state;
 
     bool is_valid_device = false;
-
-    if(vulkan__supports_device_extensions(device)){
+    if(vulkan__device_supports_required_extensions(device)){
         // Check to see if the physical device meets our requirements.
         *props = (VkPhysicalDeviceProperties2){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
         vkGetPhysicalDeviceProperties2(device, props);
@@ -158,8 +181,141 @@ static bool vulkan__test_physical_device(VkPhysicalDevice device, VkPhysicalDevi
         }
     }
 
+    //
+    // Check to make sure the physical device supports the features we require.
+    //
+    VkPhysicalDeviceVulkan13Features features_1_3 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+    };
+	VkPhysicalDeviceVulkan12Features features_1_2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = &features_1_3
+    };
+	VkPhysicalDeviceFeatures2 features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &features_1_2
+    };
 
-    return is_valid_device;
+	vkGetPhysicalDeviceFeatures2(device, &features);
+    bool supports_features = features_1_3.dynamicRendering
+                      && features_1_3.synchronization2
+                      && features_1_2.timelineSemaphore;
+
+    bool result = is_valid_device && supports_features;
+    return result;
+}
+
+// TODO: We also need a vulkan__destroy_swapchain function.
+static bool vulkan__create_swapchain(u32 target_w, u32 target_h){
+    Vulkan_State *s = &vulkan__state;
+
+    VkSurfaceCapabilitiesKHR surface_capabilities;
+    if(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s->physical_device, s->surface, &surface_capabilities) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to query surface capabilities of Vulkan physical device.\n");
+        return false;
+    }
+
+    VkExtent2D swapchain_extent = surface_capabilities.currentExtent;
+    if(swapchain_extent.width == 0xFFFFFFFF){
+        // NOTE: This is an odd Wayland design decision. If the surface capability extents are
+        // 0xFFFFFFFF, then the swapchain needs its own extents set to the size of the window.
+        // As a window manager, you'd think Wayland would know the window extents and pass that
+        // to us, but I guess it needs our help here.
+        swapchain_extent = (VkExtent2D){target_w, target_h};
+    }
+
+    // TODO: Some tutorials say we should use less. Should we? Two is double buffering, right?
+    // Why would we want more than that? Or is this the queue that Vsync will block on once
+    // it's full?
+    u32 min_image_count = surface_capabilities.minImageCount;
+
+    // TODO: Should we query supported color formats and colorspaces and pick one?
+
+    VkSwapchainCreateInfoKHR swapchain_creat_info = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = s->surface,
+        .minImageCount = min_image_count,
+        .imageFormat = Vulkan__Target_Surface_Format,
+        .imageColorSpace = Vulkan__Target_Surface_Colorspace,
+        .imageExtent = swapchain_extent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = Vulkan__Target_Present_Mode,
+        .clipped = VK_TRUE,
+        .oldSwapchain = VK_NULL_HANDLE,
+
+        // Investigate which preTransform to use. The two tutorials differ on their choice.
+        /*.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,*/
+        .preTransform = surface_capabilities.currentTransform,
+    };
+
+    s->swapchain_w = swapchain_extent.width;
+    s->swapchain_h = swapchain_extent.height;
+
+    if(vkCreateSwapchainKHR(s->device, &swapchain_creat_info, NULL, &s->swapchain) != VK_SUCCESS){
+        // TODO: Give some ideas as to what sort of formats we were questing? Would that help
+        // a user?
+        fmt_msg_puts("ERROR: Unable to create Vulkan swapchain.\n");
+        return false;
+    }
+
+    if(vkGetSwapchainImagesKHR(s->device, s->swapchain, &s->swapchain_images_count, NULL) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to get Vulkan swapchain images count.\n");
+        return false;
+    }
+
+    // TODO: malloc is about the only thing I can think of to do here. Can we tell Vulkan what
+    // our maximum images count can be and use a fixed buffer instead?
+    s->swapchain_images = malloc(sizeof(VkImage)*s->swapchain_images_count);
+    if(vkGetSwapchainImagesKHR(s->device, s->swapchain, &s->swapchain_images_count, s->swapchain_images) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to get Vulkan swapchain images.\n");
+        return false;
+    }
+
+    s->swapchain_image_views = malloc(sizeof(VkImageView)*s->swapchain_images_count);
+    for_count(u32, i, s->swapchain_images_count){
+        VkImageViewCreateInfo view_cinfo = {
+            .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image    = s->swapchain_images[i],
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format   = Vulkan__Target_Surface_Format,
+            .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            },
+        };
+
+        if(vkCreateImageView(s->device, &view_cinfo, NULL, &s->swapchain_image_views[i]) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to create Vulkan swapchain image view.\n");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void vulkan__destroy_swapchain(){
+    Vulkan_State *s = &vulkan__state;
+
+    if(s->swapchain_image_views){
+        // TODO: What if not all the image views were initialized?
+        for_count(u32, i, s->swapchain_images_count){
+            vkDestroyImageView(s->device, s->swapchain_image_views[i], NULL);
+        }
+
+        free(s->swapchain_image_views);
+        s->swapchain_image_views = NULL;
+    }
+
+    if(s->swapchain){
+        vkDestroySwapchainKHR(s->device, s->swapchain, NULL);
+    }
 }
 
 Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
@@ -222,7 +378,7 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
     }
 
     // TODO: Allow player to configure which device to prefer. By index? By name?
-    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
+    s->physical_device = VK_NULL_HANDLE;
 
     u32 physical_device_count;
     if(vkEnumeratePhysicalDevices(s->instance, &physical_device_count, NULL) == VK_SUCCESS
@@ -240,7 +396,7 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
                 if(vulkan__test_physical_device(device, &properties, &queue_family_index)){
                     const char *device_name = properties.properties.deviceName;
                     fmt_msg("Target Vulkan physical device[{0}]: {1}\n", fmt_i(device_index), fmt_cstr(device_name));
-                    physical_device = device;
+                    s->physical_device = device;
                     s->queue_family_index = queue_family_index;
                 }
             }
@@ -248,7 +404,7 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
     }
 
     // TODO: Should we store the physical device?
-    if(physical_device == VK_NULL_HANDLE){
+    if(s->physical_device == VK_NULL_HANDLE){
         fmt_msg_puts("ERROR: Unable to get physical Vulkan device.\n");
         return false;
     }
@@ -268,15 +424,22 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         .pQueueCreateInfos = &queue_cinfo,
         .queueCreateInfoCount = 1,
         .pEnabledFeatures = &device_features,
+
+        .ppEnabledExtensionNames = vulkan__device_extensions,
+        .enabledExtensionCount   = Array_Len(vulkan__device_extensions)
     };
 
-    if(vkCreateDevice(physical_device, &device_cinfo, NULL, &s->device) != VK_SUCCESS){
+    if(vkCreateDevice(s->physical_device, &device_cinfo, NULL, &s->device) != VK_SUCCESS){
         fmt_msg_puts("ERROR: Unable to create Vulkan logical device.\n");
         return false;
     }
 
     // TODO: Can this fail? What is the value of s->device_queue on failure?
     vkGetDeviceQueue(s->device, s->queue_family_index, 0, &s->graphics_queue);
+
+    if(!vulkan__create_swapchain(params->window_width, params->window_height)){
+        return false;
+    }
 
     return true;
 }
@@ -285,12 +448,8 @@ Cbed_API void vulkan_destroy(){
     Vulkan_State *s = &vulkan__state;
 
     // TODO: Are all of these null if invalid/not created?
-/*
-    if(s->swapchain){
-        vkDestroySwapchainKHR(s->device, s->swapchain, NULL);
-    }
+    vulkan__destroy_swapchain();
 
-    */
     if(s->device){
         vkDestroyDevice(s->device, NULL);
     }
