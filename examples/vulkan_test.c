@@ -142,6 +142,8 @@ int main(void){
             }
         }
 
+        vulkan_draw_test_triangle();
+
         //display_flip_backbuffer();
         display_end_frame();
     }

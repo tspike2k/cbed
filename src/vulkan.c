@@ -656,9 +656,91 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         return false;
     }
 
-    /*graphics_pipeline*/
-
     return true;
+}
+
+Cbed_API void vulkan_draw_test_triangle(){
+    Vulkan_State *s = &vulkan__state;
+
+    u32 image_view_index = 0;
+    u32 window_w = s->init_params.window_width;
+    u32 window_h = s->init_params.window_height;
+
+    VkClearValue clear_value = {
+        .color = {{0.0f, 0.0f, 0.2f, 1.0f}}
+    };
+
+    VkRenderingAttachmentInfo color_attachment_info = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView = s->swapchain_image_views[image_view_index],
+        .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .clearValue = clear_value
+    };
+
+#if 0
+    VkRenderingAttachmentInfo depth_attachment_info = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView = depthImageView,
+        .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .clearValue = {.depthStencil = {1.0f,  0}}
+    };
+#endif
+
+    VkRenderingInfo rendering_info = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .renderArea = {
+            .extent = {.width = window_w, .height = window_h } // TODO: Why not swapchain extents?
+        },
+        .layerCount = 1,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &color_attachment_info,
+        /*.pDepthAttachment = &depthAttachmentInfo*/
+    };
+
+    VkCommandBuffer command_buffer = s->command_buffer;
+
+    VkCommandBufferBeginInfo cmd_begin_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        /*.flags = 0, // Optional*/
+        /*.pInheritanceInfo = NULL; // Optional*/
+    };
+
+    if(vkBeginCommandBuffer(command_buffer, &cmd_begin_cinfo) != VK_SUCCESS) {
+        fmt_msg_puts("ERROR: Unable to begin Vulkan command buffer.\n");
+        return;
+    }
+
+    vkCmdBeginRendering(command_buffer, &rendering_info);
+
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->graphics_pipeline);
+
+    VkViewport viewport = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = s->swapchain_extent.width,
+        .height = s->swapchain_extent.height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    VkRect2D scissor = {
+        .offset = {0, 0},
+        .extent = s->swapchain_extent,
+    };
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+
+    vkCmdEndRendering(command_buffer); // TODO: Can this fail?
+
+    if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to end Vulkan command buffer.\n");
+        return;
+    }
 }
 
 Cbed_API void vulkan_destroy(){
