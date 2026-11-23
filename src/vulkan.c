@@ -40,6 +40,10 @@ typedef struct{
     VkCommandPool   command_pool;
     VkCommandBuffer command_buffer;
 
+    VkSemaphore semaphore_image_available;
+    VkSemaphore semaphore_render_done;
+    VkFence     fence_frame_in_flight;
+
     VkSwapchainKHR swapchain;
     VkExtent2D     swapchain_extent;
     u32            swapchain_images_count;
@@ -285,10 +289,10 @@ static bool vulkan__create_swapchain(u32 target_w, u32 target_h){
             .image    = s->swapchain_images[i],
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .format   = Vulkan__Target_Surface_Format,
-            .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-            .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-            .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-            .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+            /*.components.r = VK_COMPONENT_SWIZZLE_IDENTITY,*/
+            /*.components.g = VK_COMPONENT_SWIZZLE_IDENTITY,*/
+            /*.components.b = VK_COMPONENT_SWIZZLE_IDENTITY,*/
+            /*.components.a = VK_COMPONENT_SWIZZLE_IDENTITY,*/
             .subresourceRange = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .levelCount = 1,
@@ -656,13 +660,48 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         return false;
     }
 
+    VkSemaphoreCreateInfo semaphore_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    // By using the VK_FENCE_CREATE_SIGNALED_BIT, we start the fence in the signalled state.
+    // This means our first attempt to wait on the fence will return immediately. Since
+    // our fence_frame_in_flight signals when a frame is finished, attempting to wait
+    // on this fence before any frame have been drawn will make us wait eternally. By
+    // starting the fence in the signalled state, we avoid this problem.
+    VkFenceCreateInfo fence_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->semaphore_image_available) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to cerate Vulkan semaphore.\n");
+        return false;
+    }
+
+    if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->semaphore_render_done) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to cerate Vulkan semaphore.\n");
+        return false;
+    }
+
+    if(vkCreateFence(s->device, &fence_cinfo, NULL, &s->fence_frame_in_flight) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to cerate Vulkan fence.\n");
+    }
+
     return true;
 }
 
 Cbed_API void vulkan_draw_test_triangle(){
     Vulkan_State *s = &vulkan__state;
 
-    u32 image_view_index = 0;
+    // Wait for any frames in flight to complete.
+    vkWaitForFences(s->device, 1, &s->fence_frame_in_flight, VK_TRUE, UINT64_MAX);
+    vkResetFences(s->device, 1, &s->fence_frame_in_flight); // Reset the fence once we're done waiting
+
+    // TODO: Can this fail?
+    u32 swapchain_image_view_index = 0;
+    vkAcquireNextImageKHR(s->device, s->swapchain, UINT64_MAX, s->semaphore_image_available, VK_NULL_HANDLE, &swapchain_image_view_index);
+
     u32 window_w = s->init_params.window_width;
     u32 window_h = s->init_params.window_height;
 
@@ -672,7 +711,7 @@ Cbed_API void vulkan_draw_test_triangle(){
 
     VkRenderingAttachmentInfo color_attachment_info = {
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = s->swapchain_image_views[image_view_index],
+        .imageView = s->swapchain_image_views[swapchain_image_view_index],
         .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -702,6 +741,7 @@ Cbed_API void vulkan_draw_test_triangle(){
     };
 
     VkCommandBuffer command_buffer = s->command_buffer;
+    vkResetCommandBuffer(command_buffer, 0); // TODO: Can this fail?
 
     VkCommandBufferBeginInfo cmd_begin_cinfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -741,12 +781,51 @@ Cbed_API void vulkan_draw_test_triangle(){
         fmt_msg_puts("ERROR: Unable to end Vulkan command buffer.\n");
         return;
     }
+
+    VkSemaphore wait_semaphores[] = {s->semaphore_image_available};
+    VkSemaphore signal_semaphores[] = {s->semaphore_render_done};
+    VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+    VkSubmitInfo submit_info = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = Array_Len(wait_semaphores),
+        .pWaitSemaphores = wait_semaphores,
+        .pWaitDstStageMask = wait_stages,
+
+        .commandBufferCount = 1,
+        .pCommandBuffers = &command_buffer,
+
+        .signalSemaphoreCount = Array_Len(signal_semaphores),
+        .pSignalSemaphores = signal_semaphores
+    };
+
+    if(vkQueueSubmit(s->graphics_queue, 1, &submit_info, s->fence_frame_in_flight) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to submit Vulkan draw command buffer.\n");
+    }
+
+    VkSwapchainKHR swapchains[] = {s->swapchain};
+    VkPresentInfoKHR present_info = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = Array_Len(signal_semaphores),
+        .pWaitSemaphores = signal_semaphores,
+
+        .swapchainCount = Array_Len(swapchains),
+        .pSwapchains   = swapchains,
+        .pImageIndices = &swapchain_image_view_index
+    };
+
+
+    vkQueuePresentKHR(s->graphics_queue, &present_info); // TODO: Can this fail?
 }
 
 Cbed_API void vulkan_destroy(){
     Vulkan_State *s = &vulkan__state;
 
     // TODO: Are all of these null if invalid/not created?
+    vkDestroySemaphore(s->device, s->semaphore_image_available, NULL);
+    vkDestroySemaphore(s->device, s->semaphore_render_done, NULL);
+    vkDestroyFence(s->device, s->fence_frame_in_flight, NULL);
+
     if(s->command_pool){
         vkDestroyCommandPool(s->device, s->command_pool, NULL);
     }
