@@ -11,6 +11,7 @@ https://vulkan-tutorial.com/
 */
 
 #include "vulkan.h"
+#include "files.h" // TODO: This is only to load the test shader.
 
 #define Vulkan__Target_API_Version VK_API_VERSION_1_3
 
@@ -33,9 +34,10 @@ typedef struct{
     VkQueue          graphics_queue;
     u32              queue_family_index;
 
+    VkPipelineLayout pipeline_layout;
+
     VkSwapchainKHR swapchain;
-    u32            swapchain_w;
-    u32            swapchain_h;
+    VkExtent2D     swapchain_extent;
     u32            swapchain_images_count;
     VkImage       *swapchain_images;
     VkImageView   *swapchain_image_views;
@@ -250,8 +252,7 @@ static bool vulkan__create_swapchain(u32 target_w, u32 target_h){
         .preTransform = surface_capabilities.currentTransform,
     };
 
-    s->swapchain_w = swapchain_extent.width;
-    s->swapchain_h = swapchain_extent.height;
+    s->swapchain_extent = swapchain_extent;
 
     if(vkCreateSwapchainKHR(s->device, &swapchain_creat_info, NULL, &s->swapchain) != VK_SUCCESS){
         // TODO: Give some ideas as to what sort of formats we were questing? Would that help
@@ -298,6 +299,27 @@ static bool vulkan__create_swapchain(u32 target_w, u32 target_h){
     }
 
     return true;
+}
+
+static bool vulkan__create_shader_module(String src, VkShaderModule *module){
+    Vulkan_State *s = &vulkan__state;
+
+    // TODO: Does the code pointer need special alignment?
+    VkShaderModuleCreateInfo shader_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = src.size,
+        .pCode = (u32*)src.text
+    };
+
+    bool success = false;
+    if(vkCreateShaderModule(s->device, &shader_cinfo, NULL, module) == VK_SUCCESS){
+        success = true;
+    }
+    else{
+        fmt_msg_puts("ERROR: Unable to create Vulkan shader module.\n");
+    }
+
+    return success;
 }
 
 static void vulkan__destroy_swapchain(){
@@ -441,11 +463,125 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         return false;
     }
 
+    //
+    // Pipeline creation
+    //
+
+    // TODO: Use a temp buffer!
+    String vert_source = file_read_into_memory("./bin/vulkan_test_vert.spv", s->init_params.memory);
+    String frag_source = file_read_into_memory("./bin/vulkan_test_frag.spv", s->init_params.memory);
+
+    // TODO: All shader modules need to be explicitly freed. This complicates our logic here.
+    VkShaderModule vert_module;
+    VkShaderModule frag_module;
+    vulkan__create_shader_module(vert_source, &vert_module);
+    vulkan__create_shader_module(frag_source, &frag_module);
+
+    VkPipelineShaderStageCreateInfo shader_stages_cinfo[] = {
+        {
+            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = vert_module,
+            .pName = "main",
+        },
+        {
+            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = frag_module,
+            .pName = "main",
+        }
+    };
+
+    VkDynamicState dynamic_state[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamic_state_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = Array_Len(dynamic_state),
+        .pDynamicStates = dynamic_state,
+    };
+
+    // NOTE: Since we're hardcoding the vertices inside the shader, we don't really
+    // have any formats to describe.
+    VkPipelineVertexInputStateCreateInfo vertex_input_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    VkViewport viewport = {
+        .x = 0,
+        .y = 0,
+        .width  = s->swapchain_extent.width,
+        .height = s->swapchain_extent.height,
+        .minDepth = 0,
+        .maxDepth = 1,
+    };
+
+    VkRect2D scissor = {
+        .offset = {0, 0},
+        .extent = s->swapchain_extent
+    };
+
+    VkPipelineViewportStateCreateInfo viewport_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports    = &viewport,
+        .scissorCount = 1,
+        .pScissors    = &scissor
+    };
+
+    VkPipelineRasterizationStateCreateInfo raster_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        /*.cullMode = VK_CULL_MODE_BACK_BIT,*/
+        /*.frontFace = VK_FRONT_FACE_CLOCKWISE,*/
+    };
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment = {
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+                        | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+    };
+
+    VkPipelineColorBlendStateCreateInfo color_blending = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOp = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments = &color_blend_attachment
+    };
+
+    // NOTE: The pipeline layout determines the shader uniforms. It can also be used to define
+    // "push constants"
+    VkPipelineLayoutCreateInfo pipeline_layout_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    };
+
+    if(vkCreatePipelineLayout(s->device, &pipeline_layout_cinfo, NULL, &s->pipeline_layout) != VK_SUCCESS){
+        fmt_msg_puts("ERROR: Unable to create Vulkan pipeline layout.\n");
+        return false;
+    }
+
+    vkDestroyShaderModule(s->device, frag_module, NULL);
+    vkDestroyShaderModule(s->device, vert_module, NULL);
+
+
+
     return true;
 }
 
 Cbed_API void vulkan_destroy(){
     Vulkan_State *s = &vulkan__state;
+
+    if(s->pipeline_layout){
+        vkDestroyPipelineLayout(s->device, s->pipeline_layout, NULL);
+    }
 
     // TODO: Are all of these null if invalid/not created?
     vulkan__destroy_swapchain();

@@ -52,6 +52,8 @@ ui: display
 
 #NOTE: Experimental
 vulkan_test:
+	glslc ./examples/vulkan_test.vert -o ./bin/vulkan_test_vert.spv
+	glslc ./examples/vulkan_test.frag -o ./bin/vulkan_test_frag.spv
 	$(CC) $(FLAGS) -o ./bin/vulkan_test examples/vulkan_test.c -lX11 -lXi -lm -lvulkan
 
 # This would use the Vulkan display backend.
