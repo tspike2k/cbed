@@ -12,7 +12,6 @@ static u8 display__memory_buffer[1*1024*1024]; // TODO: Is this a big large?
 
 /*
 TODO:
-    - Should we rename this to desktop.d? events.d? pal.d (Platform Abstraction Layer)?
     - Add function to copy to clipboard
     - Use XPresent to sync to monitor refresh rate? It sounds like the idea is you can
       request to be sent an event when the display flips, then block on events. Then we
@@ -34,6 +33,7 @@ TODO:
 
 #ifdef Display_OpenGL
 
+#define Display_HW_Rendering
 #define OpenGL_Expose_glX
 #include "opengl.c"
 
@@ -44,7 +44,10 @@ static glXSwapIntervalSGIFunc         glxSwapIntervalSGI;
 #endif // Display_OpenGL
 
 #ifdef Display_Vulkan
-#  include "vulkan.c"
+
+#define Display_HW_Rendering
+#include "vulkan.c"
+
 #endif
 
 // TODO: Should we even have a seperate Xlib window type? What does that help? We
@@ -231,8 +234,6 @@ static bool display__init_glx(XVisualInfo *visual_info, int screen){
             *visual_info = *target_visual_info;
             XFree(target_visual_info);
             XFree(fb_list);
-
-            fmt_msg_puts("Got framebuffer config for HW rendering.\n");
 
             // NOTE: Temporarily stub out the X11 error handler with our own in case context creation fails.
             XErrorHandler old_error_handler = XSetErrorHandler(display__stub_xlib_error_handler);
@@ -873,7 +874,7 @@ static bool display__init_sw_window(Xlib_Window *window){
         if(display__create_window(window, visual_info.screen, visual_info.visual, visual_info.depth)){
             display__create_backbuffer(window);
 
-            fmt_msg("Software Renderer: {0}, {1}\n", fmt_i(window->width), fmt_i(window->height));
+            fmt_msg("Display renderer backend: Xlib software ({0}x{1})\n", fmt_i(window->width), fmt_i(window->height));
             result = true;
         }
     }
@@ -892,6 +893,10 @@ static bool display__init_hw_window(Xlib_Window *window){
         if(display__create_window(window, visual_info.screen, visual_info.visual, visual_info.depth)){
             glXMakeCurrent(s->display, s->window.handle, s->glx_context);
             load_opengl_functions((OpenGL_Load_Sym_Func)glXGetProcAddressARB);
+
+            const char *gl_version_str = (const char*)glGetString(GL_VERSION);
+            const char *gl_shader_str = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
+            fmt_msg("Display renderer backend: OpenGL {0} (Shader {1})\n", fmt_cstr(gl_version_str), fmt_cstr(gl_shader_str));
             success = true;
         }
     }
@@ -926,6 +931,9 @@ static bool display__init_hw_window(Xlib_Window *window){
             };
 
             if(vulkan_init(&init_params)){
+                // TODO: Print the physical device name, plus the target version string and
+                // other things?
+                /*fmt_msg("Display renderer backend: Vulkan {0} (Shader {1})\n", fmt_cstr(gl_version_str), fmt_cstr(gl_shader_str));*/
                 result = true;
             }
         }
@@ -942,7 +950,11 @@ static bool display__init_window(Xlib_Window *window){
     bool success = false;
 
     if(window->flags & Display_Flag_Hardware_Render){
+#ifdef Display_HW_Rendering
         success = display__init_hw_window(window);
+#else
+        success = false;
+#endif
     }
     else if(window->flags & Display_Flag_Software_Render){
         success = display__init_sw_window(window);
@@ -952,11 +964,14 @@ static bool display__init_window(Xlib_Window *window){
         // flag, it is assumed the caller doesn't care which type of window is created. In that
         // case, we try to get a hardware rendering window first. If that fails, we fall back
         // to a software rendering one.
+#ifdef Display_HW_Rendering
         if(display__init_hw_window(window)){
             success = true;
             window->flags |= Display_Flag_Hardware_Render;
         }
-        else if(display__init_sw_window(window)){
+        else
+#endif
+        if(display__init_sw_window(window)){
             window->flags |= Display_Flag_Software_Render;
             success = true;
         }
