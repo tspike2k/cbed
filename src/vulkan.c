@@ -10,6 +10,14 @@ https://www.howtovulkan.com/
 https://vulkan-tutorial.com/
 */
 
+/*
+TODO:
+    - Fix synchronization bugs.
+    - Greatly improve our cleanup code. Figure out how best to handle cleanup of resources
+    on early exit. Or maybe do away with early exit entirely? We could do the old C way of
+    "goto" an error label. If only C had defer, this would actually be quite easy.
+*/
+
 #include "vulkan.h"
 #include "files.h" // TODO: This is only to load the test shader.
 
@@ -20,11 +28,14 @@ https://vulkan-tutorial.com/
 // https://www.howtovulkan.com/#swapchain
 #define Vulkan__Target_Present_Mode VK_PRESENT_MODE_FIFO_KHR
 
-// TODO: According to https://www.howtovulkan.com/#swapchain, this pairing of surface format and colorspace
-// should be availible on all Vulkan capable devices. However, this is the only place I've seen
-// that says this, so I can't confirm. See if we can find proof of this somewhere.
+// TODO: According to https://www.howtovulkan.com/#swapchain, this pairing of surface format and
+// colorspace should be availible on all Vulkan capable devices. However, this is the only
+// place I've seen that says this, so I can't confirm. See if we can find proof of this
+// somewhere.
 #define Vulkan__Target_Surface_Format VK_FORMAT_B8G8R8A8_SRGB
 #define Vulkan__Target_Surface_Colorspace VK_COLORSPACE_SRGB_NONLINEAR_KHR
+
+#define Vulkan__Frames_In_Flight_Max 2
 
 typedef struct{
     VkInstance       instance;
@@ -40,9 +51,11 @@ typedef struct{
     VkCommandPool   command_pool;
     VkCommandBuffer command_buffer;
 
-    VkSemaphore semaphore_image_available;
-    VkSemaphore semaphore_render_done;
-    VkFence     fence_frame_in_flight;
+    u32 frame_index;
+
+    VkSemaphore semaphore_image_available[Vulkan__Frames_In_Flight_Max];
+    VkSemaphore *semaphores_render_done; // This is the length of swapchain_images_count
+    VkFence     fences_frame_in_flight[Vulkan__Frames_In_Flight_Max];
 
     VkSwapchainKHR swapchain;
     VkExtent2D     swapchain_extent;
@@ -306,6 +319,40 @@ static bool vulkan__create_swapchain(u32 target_w, u32 target_h){
         }
     }
 
+        VkSemaphoreCreateInfo semaphore_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    // By using the VK_FENCE_CREATE_SIGNALED_BIT, we start the fence in the signalled state.
+    // This means our first attempt to wait on the fence will return immediately. Since
+    // our fence_frame_in_flight signals when a frame is finished, attempting to wait
+    // on this fence before any frame have been drawn will make us wait eternally. By
+    // starting the fence in the signalled state, we avoid this problem.
+    VkFenceCreateInfo fence_cinfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    for_count(u32, i, Vulkan__Frames_In_Flight_Max){
+        if(vkCreateFence(s->device, &fence_cinfo, NULL, &s->fences_frame_in_flight[i]) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to cerate Vulkan fence.\n");
+        }
+
+        if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->semaphore_image_available[i]) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to cerate Vulkan semaphore.\n");
+            return false;
+        }
+    }
+
+    // TODO: These will need to be freed/recreated when rectreating the swapchain
+    s->semaphores_render_done = malloc(s->swapchain_images_count*sizeof(VkSemaphore));
+    for_count(u32, i, s->swapchain_images_count){
+        if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->semaphores_render_done[i]) != VK_SUCCESS){
+            fmt_msg_puts("ERROR: Unable to cerate Vulkan semaphore.\n");
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -332,6 +379,23 @@ static bool vulkan__create_shader_module(String src, VkShaderModule *module){
 
 static void vulkan__destroy_swapchain(){
     Vulkan_State *s = &vulkan__state;
+
+    for_count(u32, i, Array_Len(s->semaphore_image_available)){
+        vkDestroySemaphore(s->device, s->semaphore_image_available[i], NULL);
+    }
+
+    for_count(u32, i, Array_Len(s->fences_frame_in_flight)){
+        vkDestroyFence(s->device, s->fences_frame_in_flight[i], NULL);
+    }
+
+    if(s->semaphores_render_done){
+        // TODO: These will need to be freed/recreated when rectreating the swapchain
+        for_count(u32, i, s->swapchain_images_count){
+            vkDestroySemaphore(s->device, s->semaphores_render_done[i], NULL);
+        }
+        free(s->semaphores_render_done);
+        s->semaphores_render_done = NULL;
+    }
 
     if(s->swapchain_image_views){
         // TODO: What if not all the image views were initialized?
@@ -660,34 +724,6 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
         return false;
     }
 
-    VkSemaphoreCreateInfo semaphore_cinfo = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-    };
-
-    // By using the VK_FENCE_CREATE_SIGNALED_BIT, we start the fence in the signalled state.
-    // This means our first attempt to wait on the fence will return immediately. Since
-    // our fence_frame_in_flight signals when a frame is finished, attempting to wait
-    // on this fence before any frame have been drawn will make us wait eternally. By
-    // starting the fence in the signalled state, we avoid this problem.
-    VkFenceCreateInfo fence_cinfo = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT
-    };
-
-    if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->semaphore_image_available) != VK_SUCCESS){
-        fmt_msg_puts("ERROR: Unable to cerate Vulkan semaphore.\n");
-        return false;
-    }
-
-    if(vkCreateSemaphore(s->device, &semaphore_cinfo, NULL, &s->semaphore_render_done) != VK_SUCCESS){
-        fmt_msg_puts("ERROR: Unable to cerate Vulkan semaphore.\n");
-        return false;
-    }
-
-    if(vkCreateFence(s->device, &fence_cinfo, NULL, &s->fence_frame_in_flight) != VK_SUCCESS){
-        fmt_msg_puts("ERROR: Unable to cerate Vulkan fence.\n");
-    }
-
     return true;
 }
 
@@ -695,12 +731,14 @@ Cbed_API void vulkan_draw_test_triangle(){
     Vulkan_State *s = &vulkan__state;
 
     // Wait for any frames in flight to complete.
-    vkWaitForFences(s->device, 1, &s->fence_frame_in_flight, VK_TRUE, UINT64_MAX);
-    vkResetFences(s->device, 1, &s->fence_frame_in_flight); // Reset the fence once we're done waiting
+    vkWaitForFences(s->device, 1, &s->fences_frame_in_flight[s->frame_index], VK_TRUE, UINT64_MAX);
+    vkResetFences(s->device, 1, &s->fences_frame_in_flight[s->frame_index]); // Reset the fence once we're done waiting
 
     // TODO: Can this fail?
-    u32 swapchain_image_view_index = 0;
-    vkAcquireNextImageKHR(s->device, s->swapchain, UINT64_MAX, s->semaphore_image_available, VK_NULL_HANDLE, &swapchain_image_view_index);
+    u32 swapchain_image_index = 0;
+    // TODO: This can return VK_ERROR_OUT_OF_DATE_KHR, which requires the swapchain be rebuilt.
+    // It's not something that should result in aborting the application.
+    vkAcquireNextImageKHR(s->device, s->swapchain, UINT64_MAX, s->semaphore_image_available[s->frame_index], VK_NULL_HANDLE, &swapchain_image_index);
 
     u32 window_w = s->init_params.window_width;
     u32 window_h = s->init_params.window_height;
@@ -711,7 +749,7 @@ Cbed_API void vulkan_draw_test_triangle(){
 
     VkRenderingAttachmentInfo color_attachment_info = {
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = s->swapchain_image_views[swapchain_image_view_index],
+        .imageView = s->swapchain_image_views[swapchain_image_index],
         .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -754,7 +792,45 @@ Cbed_API void vulkan_draw_test_triangle(){
         return;
     }
 
-    vkCmdBeginRendering(command_buffer, &rendering_info);
+    // We need to be able to "transition image layouts" for a given swapchain images's
+    // color and depth buffers.
+    // TODO: What does "transition image layouts" even mean?
+    VkImageMemoryBarrier2 outputBarriers[] = {
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = 0,
+            .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+            .image = s->swapchain_images[swapchain_image_index],
+            .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+        },
+#if 0
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+            .image = depthImage,
+            .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, .levelCount = 1, .layerCount = 1 }
+        }
+#endif
+    };
+
+    VkDependencyInfo barrierDependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = Array_Len(outputBarriers),
+        .pImageMemoryBarriers = outputBarriers
+    };
+    vkCmdPipelineBarrier2(command_buffer, &barrierDependencyInfo); // TODO: Can this fail?
+
+
+    vkCmdBeginRendering(command_buffer, &rendering_info); // TODO: Can this fail?
 
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, s->graphics_pipeline);
 
@@ -777,15 +853,60 @@ Cbed_API void vulkan_draw_test_triangle(){
 
     vkCmdEndRendering(command_buffer); // TODO: Can this fail?
 
+    VkImageMemoryBarrier2 barrierPresent = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = 0,
+        .oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .image = s->swapchain_images[swapchain_image_index],
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+    };
+    VkDependencyInfo barrierPresentDependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &barrierPresent
+    };
+    vkCmdPipelineBarrier2(command_buffer, &barrierPresentDependencyInfo); // TODO: Can this fail?
+
     if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS){
         fmt_msg_puts("ERROR: Unable to end Vulkan command buffer.\n");
         return;
     }
 
-    VkSemaphore wait_semaphores[] = {s->semaphore_image_available};
-    VkSemaphore signal_semaphores[] = {s->semaphore_render_done};
-    VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphoreSubmitInfo waitSemaphoreInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = s->semaphore_image_available[s->frame_index],
+        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+    };
+    VkCommandBufferSubmitInfo commandBufferSubmitInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = command_buffer
+    };
+    VkSemaphoreSubmitInfo signalSemaphoreInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = s->semaphores_render_done[swapchain_image_index],
+        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+    };
+    VkSubmitInfo2 submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .waitSemaphoreInfoCount = 1,
+        .pWaitSemaphoreInfos = &waitSemaphoreInfo,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &commandBufferSubmitInfo,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &signalSemaphoreInfo,
+    };
+    if(vkQueueSubmit2(s->graphics_queue, 1, &submitInfo, s->fences_frame_in_flight[s->frame_index]) != VK_SUCCESS){
+        fmt_msg_puts("Unable to submit Vulkan queue.\n");
+        return;
+    }
 
+    s->frame_index = (s->frame_index + 1) % Vulkan__Frames_In_Flight_Max;
+
+#if 0
     VkSubmitInfo submit_info = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = Array_Len(wait_semaphores),
@@ -802,29 +923,39 @@ Cbed_API void vulkan_draw_test_triangle(){
     if(vkQueueSubmit(s->graphics_queue, 1, &submit_info, s->fence_frame_in_flight) != VK_SUCCESS){
         fmt_msg_puts("ERROR: Unable to submit Vulkan draw command buffer.\n");
     }
+#endif
 
     VkSwapchainKHR swapchains[] = {s->swapchain};
     VkPresentInfoKHR present_info = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = Array_Len(signal_semaphores),
-        .pWaitSemaphores = signal_semaphores,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &s->semaphores_render_done[swapchain_image_index],
 
         .swapchainCount = Array_Len(swapchains),
         .pSwapchains   = swapchains,
-        .pImageIndices = &swapchain_image_view_index
+        .pImageIndices = &swapchain_image_index
     };
 
 
     vkQueuePresentKHR(s->graphics_queue, &present_info); // TODO: Can this fail?
+
+    // TODO: This is the only reason we're not getting spammed with sync errors. Figure out why.
+    vkDeviceWaitIdle(s->device);
 }
 
 Cbed_API void vulkan_destroy(){
     Vulkan_State *s = &vulkan__state;
 
+    vkDeviceWaitIdle(s->device); // TODO: This can fail, but why check it?
+
+    //
     // TODO: Are all of these null if invalid/not created?
+    //
+#if 0
     vkDestroySemaphore(s->device, s->semaphore_image_available, NULL);
     vkDestroySemaphore(s->device, s->semaphore_render_done, NULL);
     vkDestroyFence(s->device, s->fence_frame_in_flight, NULL);
+#endif
 
     if(s->command_pool){
         vkDestroyCommandPool(s->device, s->command_pool, NULL);
