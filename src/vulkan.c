@@ -561,7 +561,8 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
     String vert_source = file_read_into_memory("./bin/vulkan_test_vert.spv", s->init_params.memory);
     String frag_source = file_read_into_memory("./bin/vulkan_test_frag.spv", s->init_params.memory);
 
-    // TODO: All shader modules need to be explicitly freed. This complicates our logic here.
+    // TODO: All shader modules need to be explicitly freed. This complicates our cleanup
+    // code.
     VkShaderModule vert_module;
     VkShaderModule frag_module;
     vulkan__create_shader_module(vert_source, &vert_module);
@@ -729,6 +730,9 @@ Cbed_API bool vulkan_init(Vulkan_Init_Params *params){
 
 Cbed_API void vulkan_draw_test_triangle(){
     Vulkan_State *s = &vulkan__state;
+
+    // TODO: This is the only reason we're not getting spammed with sync errors. Figure out why.
+    vkDeviceWaitIdle(s->device);
 
     // Wait for any frames in flight to complete.
     vkWaitForFences(s->device, 1, &s->fences_frame_in_flight[s->frame_index], VK_TRUE, UINT64_MAX);
@@ -938,9 +942,6 @@ Cbed_API void vulkan_draw_test_triangle(){
 
 
     vkQueuePresentKHR(s->graphics_queue, &present_info); // TODO: Can this fail?
-
-    // TODO: This is the only reason we're not getting spammed with sync errors. Figure out why.
-    vkDeviceWaitIdle(s->device);
 }
 
 Cbed_API void vulkan_destroy(){
